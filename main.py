@@ -118,7 +118,7 @@ def _check_license() -> bool:
 
 CFG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.8"
 VERSION_CHECK_URL = "https://spee4ka.ru/version.json"
 
 SAMPLE_RATE = 16000
@@ -1178,11 +1178,33 @@ def _menu_activate(icon, item):
     def _run():
         try:
             import subprocess
-            venv_python = ROOT / ".venv" / "Scripts" / "pythonw.exe"
-            python = str(venv_python) if venv_python.exists() else sys.executable
+            # Find Python: venv (dev) → embedded (installed) → fallback
+            candidates_py = [
+                ROOT / ".venv" / "Scripts" / "pythonw.exe",
+                ROOT.parent / "python" / "pythonw.exe",
+                ROOT / "python" / "pythonw.exe",
+            ]
+            python = next((str(p) for p in candidates_py if p.exists()), sys.executable)
+
+            # Find activation_window.py in script dir or ROOT
+            candidates_script = [
+                Path(__file__).parent / "activation_window.py",
+                ROOT / "activation_window.py",
+            ]
+            activation_script = next((p for p in candidates_script if p.exists()), None)
+
+            if activation_script is None:
+                log.error("activation_window.py not found")
+                if tray_icon:
+                    tray_icon.notify(
+                        "Файл активации не найден. Переустановите приложение.",
+                        "Спичка — Ошибка"
+                    )
+                return
+
             proc = subprocess.Popen(
-                [python, str(ROOT / "activation_window.py")],
-                cwd=str(ROOT),
+                [python, str(activation_script)],
+                cwd=str(activation_script.parent),
             )
             proc.wait()
             _check_license()

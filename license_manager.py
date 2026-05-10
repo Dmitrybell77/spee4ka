@@ -1,5 +1,7 @@
 import json
 import logging
+import os
+import shutil
 import time
 from pathlib import Path
 from typing import Optional
@@ -18,11 +20,26 @@ CHECK_INTERVAL_SEC = 24 * 3600
 
 
 def _license_path(root: Path) -> Path:
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        d = Path(appdata) / "Spee4ka"
+        d.mkdir(parents=True, exist_ok=True)
+        return d / "license.dat"
     return root / "license.dat"
 
 
 def _read_local(root: Path) -> Optional[dict]:
     p = _license_path(root)
+    # Migrate license.dat from old install-dir location to APPDATA
+    if not p.exists():
+        old = root / "license.dat"
+        if old.exists() and old != p:
+            try:
+                shutil.copy2(old, p)
+                old.unlink()
+                log.info("Migrated license.dat to APPDATA")
+            except Exception:
+                p = old
     if not p.exists():
         return None
     try:
