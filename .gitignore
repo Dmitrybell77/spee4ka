@@ -1,0 +1,41 @@
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Build artifacts
+build/
+dist/
+dist_installer/
+installer_build/
+
+# AI models (large binary files)
+models/
+
+# Logs
+logs/
+*.log
+
+# Secrets
+server.env
+.env
+
+# Executables
+*.exe
+
+# Data files
+*.xls
+*.xlsx
+*.jpg
+*.jpeg
+*.png
+
+# IDE
+.vscode/
+*.spec.bak
+
+# Memory (Claude working files)
+memory/

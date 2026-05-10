@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ВАРИАНТ B — «Два языка»
+  Два чётких острых кончика пламени — левый чуть выше правого.
+  Между ними выраженная впадина. Более симметричный, динамичный.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 118">
+  <title>Спичка — B</title>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="100" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#4338CA"/>
+      <stop offset="35%"  stop-color="#7C3AED"/>
+      <stop offset="68%"  stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+    <clipPath id="mc">
+      <rect x="33" y="64" width="34" height="27" rx="13.5"/>
+    </clipPath>
+  </defs>
+
+  <!-- Силуэт — два языка пламени -->
+  <path fill="url(#g)" d="
+    M 50,115
+    C 26,115 10,102 10,82
+    C 10,60 16,44 22,30
+    C 26,22 28,14 30,7
+    C 32,2 36,0 39,4
+    C 41,7 42,14 43,21
+    C 45,16 48,13 50,16
+    C 52,13 55,16 57,21
+    C 58,14 60,7 63,3
+    C 66,0 70,2 71,8
+    C 72,15 70,25 66,33
+    C 73,27 81,22 85,30
+    C 90,40 92,58 90,76
+    C 90,94 84,108 70,115
+    C 63,118 57,117 50,115
+    Z
+  "/>
+
+  <!-- Корпус микрофона -->
+  <rect fill="white" x="33" y="64" width="34" height="27" rx="13.5"/>
+
+  <!-- Прорези у краёв -->
+  <g clip-path="url(#mc)">
+    <rect fill="url(#g)" x="33" y="69"   width="34" height="3.5"/>
+    <rect fill="url(#g)" x="33" y="84"   width="34" height="3.5"/>
+  </g>
+
+  <!-- Стержень-спичка -->
+  <rect fill="white" x="47.5" y="91" width="5" height="21" rx="2.5"/>
+</svg>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ВАРИАНТ C — «Высокий факел»
+  Один очень высокий и вытянутый язык пламени с S-изгибом,
+  и второй короткий острый "лепесток" чуть правее.
+  Более драматичный, вертикальный.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 118">
+  <title>Спичка — C</title>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="100" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#4338CA"/>
+      <stop offset="35%"  stop-color="#7C3AED"/>
+      <stop offset="68%"  stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+    <clipPath id="mc">
+      <rect x="33" y="64" width="34" height="27" rx="13.5"/>
+    </clipPath>
+  </defs>
+
+  <!-- Силуэт — высокое пламя с доп. лепестком -->
+  <path fill="url(#g)" d="
+    M 50,115
+    C 24,115 8,101 8,80
+    C 8,58 16,40 24,26
+    C 28,18 30,10 32,4
+    C 34,1 37,1 40,5
+    C 42,9 43,16 44,24
+    C 47,17 52,11 56,15
+    C 60,10 63,9 65,14
+    C 67,20 65,31 61,39
+    C 69,33 79,29 83,37
+    C 89,49 92,67 90,83
+    C 89,101 83,113 69,116
+    C 62,118 56,117 50,115
+    Z
+  "/>
+
+  <!-- Корпус микрофона -->
+  <rect fill="white" x="33" y="64" width="34" height="27" rx="13.5"/>
+
+  <!-- Прорези у краёв -->
+  <g clip-path="url(#mc)">
+    <rect fill="url(#g)" x="33" y="69"   width="34" height="3.5"/>
+    <rect fill="url(#g)" x="33" y="84"   width="34" height="3.5"/>
+  </g>
+
+  <!-- Стержень-спичка -->
+  <rect fill="white" x="47.5" y="91" width="5" height="21" rx="2.5"/>
+</svg>
