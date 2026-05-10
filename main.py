@@ -90,6 +90,7 @@ def _check_for_updates():
             _update_available = remote
             _update_url = url
             if tray_icon:
+                tray_icon.menu = _build_menu()
                 tray_icon.update_menu()
     except Exception:
         pass
@@ -117,7 +118,7 @@ def _check_license() -> bool:
 
 CFG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.7"
 VERSION_CHECK_URL = "https://spee4ka.ru/version.json"
 
 SAMPLE_RATE = 16000
@@ -230,9 +231,33 @@ def _show_activation_dialog() -> bool:
         ).pack(**pad)
 
         key_var = tk.StringVar()
-        key_entry = tk.Entry(root, textvariable=key_var, width=24, font=("Consolas", 11), justify="center")
-        key_entry.pack(padx=20, pady=8)
-        key_entry.focus_set()
+        entry_frame = tk.Frame(root)
+        entry_frame.pack(padx=20, pady=8)
+        key_entry = tk.Entry(entry_frame, textvariable=key_var, width=26, font=("Consolas", 11), justify="center")
+        key_entry.pack(side="left")
+        root.update()
+        key_entry.focus_force()
+
+        def _paste(event=None):
+            try:
+                import ctypes
+                ctypes.windll.user32.OpenClipboard(0)
+                handle = ctypes.windll.user32.GetClipboardData(13)  # CF_UNICODETEXT
+                text = ctypes.c_wchar_p(handle).value or ""
+                ctypes.windll.user32.CloseClipboard()
+            except Exception:
+                try:
+                    text = root.clipboard_get()
+                except Exception:
+                    text = ""
+            if text.strip():
+                key_var.set(text.strip())
+                key_entry.icursor(tk.END)
+            return "break"
+
+        key_entry.bind("<Control-v>", _paste)
+        key_entry.bind("<Control-V>", _paste)
+        tk.Button(entry_frame, text="📋", command=_paste, font=("Segoe UI", 10), width=2).pack(side="left", padx=(4, 0))
 
         status_var = tk.StringVar(value="")
         status_label = tk.Label(root, textvariable=status_var, font=("Segoe UI", 9), fg="red")
@@ -245,6 +270,8 @@ def _show_activation_dialog() -> bool:
             if not key:
                 status_var.set("Введите ключ")
                 return
+            status_var.set("Проверяю...")
+            root.update()
             try:
                 from license_manager import activate
                 res = activate(key, ROOT)
@@ -814,6 +841,7 @@ def _history_add(text: str):
         HISTORY_FILE.write_text(json.dumps(entries, ensure_ascii=False), encoding="utf-8")
         if tray_icon is not None:
             try:
+                tray_icon.menu = _build_menu()
                 tray_icon.update_menu()
             except Exception:
                 pass
@@ -851,7 +879,7 @@ def _history_items():
                 display += "…"
             txt = label_text
             items.append(
-                pystray.MenuItem(display, lambda _, t=txt: _copy_history_item(t))
+                pystray.MenuItem(display, lambda icon, item, t=txt: _copy_history_item(t))
             )
         return items
     except Exception:
@@ -1139,9 +1167,31 @@ def _menu_open_config(icon, item):
         log.warning(f"open config: {ex}")
 
 
+_activate_open = threading.Event()
+
+
 def _menu_activate(icon, item):
-    _show_activation_dialog()
-    _check_license()
+    if _activate_open.is_set():
+        return
+    _activate_open.set()
+
+    def _run():
+        try:
+            import subprocess
+            venv_python = ROOT / ".venv" / "Scripts" / "pythonw.exe"
+            python = str(venv_python) if venv_python.exists() else sys.executable
+            proc = subprocess.Popen(
+                [python, str(ROOT / "activation_window.py")],
+                cwd=str(ROOT),
+            )
+            proc.wait()
+            _check_license()
+        except Exception:
+            log.exception("activation window error")
+        finally:
+            _activate_open.clear()
+
+    threading.Thread(target=_run, daemon=True, name="activate-window").start()
 
 
 def _menu_exit(icon, item):
@@ -1202,9 +1252,10 @@ def _build_menu():
         pystray.MenuItem("История", pystray.Menu(_history_items)),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(
-            lambda _: f"Лицензия: {'✓ Pro' if _license_valid else '✗ Не активирована'}",
-            _menu_activate,
+            lambda _: f"Лицензия: {'✓ Активирована' if _license_valid else '✗ Не активирована'}",
+            None, enabled=False,
         ),
+        pystray.MenuItem("Ввести ключ активации", _menu_activate),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Open log", _menu_open_log),
         pystray.MenuItem("Open config", _menu_open_config),
@@ -1235,11 +1286,10 @@ def main():
     except ImportError:
         pass  # first_run.py not present — skip (dev mode)
 
-    # License check (disabled for beta testing — re-enable before commercial release)
-    # if not _check_license():
-    #     if not _show_activation_dialog():
-    #         log.info("No valid license — exiting")
-    #         sys.exit(0)
+    if not _check_license():
+        if not _show_activation_dialog():
+            log.info("No valid license — exiting")
+            sys.exit(0)
 
     log.info("=" * 60)
     log.info(f"Spee4ka. Hold [{HOTKEY}] — speak — release.")

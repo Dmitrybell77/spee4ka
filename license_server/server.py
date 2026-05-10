@@ -357,14 +357,27 @@ localStorage.removeItem('spee4ka_order_id');
   <button class="copy-btn" id="cbtn" onclick="copyKey()">Скопировать</button>
 </div>
 <div class="step">
-  <b>Как активировать:</b><br>
+  <b>Шаг 1 — Скачайте и установите Спичку:</b><br><br>
+  <a href="https://github.com/Dmitrybell77/spee4ka/releases/download/v1.0.0/Spee4ka_Setup.exe"
+     style="display:inline-block;padding:12px 32px;background:#4338ca;color:#fff;border-radius:8px;text-decoration:none;font-size:1rem;font-weight:600;">
+    ⬇ Скачать Спичку для Windows
+  </a><br>
+  <span style="color:#888;font-size:.85rem;">Запустите Spee4ka_Setup.exe и следуйте инструкции установщика</span>
+</div>
+<div class="step" style="margin-top:12px;">
+  <b>Шаг 2 — Активируйте лицензию:</b><br>
   1. Запустите Спичку — найдите иконку микрофона в трее<br>
   2. Правая кнопка → <b>Настройки</b><br>
   3. Введите ключ в поле «Лицензионный ключ» → <b>Активировать</b><br>
   4. Сохраните ключ — он показывается один раз
 </div>
+<div class="step" style="margin-top:12px;">
+  <b>Шаг 3 — Настройте Яндекс API (опционально):</b><br>
+  Подключите Яндекс для более точного распознавания и полировки текста.<br>
+  <a href="/instruction.html" target="_blank" rel="noopener" style="color:#4338CA;font-weight:600">Читать инструкцию по подключению →</a>
+</div>
 <div class="step" style="margin-top:16px;font-size:.9rem;color:#555">
-  🧾 <b>Нужен чек?</b> Напишите на <a href="mailto:dmitrybell@yandex.ru">dmitrybell@yandex.ru</a> — пришлём в течение дня.
+  🧾 <b>Нужен чек?</b> Напишите на <a href="mailto:info@spee4ka.ru">info@spee4ka.ru</a> — пришлём в течение дня.
 </div>
 {% else %}
 <div class="waiting">⏳ Ожидаем подтверждение от платёжной системы…</div>
@@ -413,8 +426,22 @@ button:hover{background:#666}
 .msg{padding:8px;margin:8px 0;border-radius:4px}
 .ok{background:#dfd;color:#060}
 .err{background:#fdd;color:#600}
+#login{max-width:360px;margin:120px auto;background:#fff;padding:32px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.1);text-align:center}
+#login h2{margin-top:0}
+#login input{width:100%;box-sizing:border-box;margin:8px 0}
+#login button{width:100%;margin-top:8px}
+#panel{display:none}
 </style>
 </head><body>
+
+<div id="login">
+  <h2>Спичка Admin</h2>
+  <input id="pwd-input" type="password" placeholder="Пароль" onkeydown="if(event.key==='Enter')login()">
+  <button onclick="login()">Войти</button>
+  <div id="login-err" class="msg err" style="display:none">Неверный пароль</div>
+</div>
+
+<div id="panel">
 <h1>Спичка License Admin</h1>
 
 <h2>Generate Keys</h2>
@@ -428,13 +455,35 @@ button:hover{background:#666}
 <button onclick="loadList()">Refresh</button>
 <div id="list-msg"></div>
 <table><thead><tr>
-<th>Key</th><th>Status</th><th>Machine ID</th><th>Activated</th><th>Expires</th><th>Resets</th><th>Email</th><th>Action</th>
+<th>Key</th><th>Status</th><th>Machine ID</th><th>Создан</th><th>Activated</th><th>Expires</th><th>Resets</th><th>Email</th><th>Action</th>
 </tr></thead><tbody id="tbody"></tbody></table>
+</div>
 
 <script>
-const P='{{admin_pwd}}';
+let P = sessionStorage.getItem('adm') || '';
+if(P) tryEnter();
+
+function login(){
+  P = document.getElementById('pwd-input').value;
+  tryEnter();
+}
+
+async function tryEnter(){
+  const r = await fetch('/api/list?admin='+encodeURIComponent(P));
+  if(r.status === 401){
+    document.getElementById('login-err').style.display='block';
+    P = '';
+    return;
+  }
+  sessionStorage.setItem('adm', P);
+  document.getElementById('login').style.display='none';
+  document.getElementById('panel').style.display='block';
+  const d = await r.json();
+  renderList(d.licenses||[]);
+}
+
 async function generate(){
- const r=await fetch('/api/generate?admin='+P,{
+ const r=await fetch('/api/generate?admin='+encodeURIComponent(P),{
   method:'POST',headers:{'Content-Type':'application/json'},
   body:JSON.stringify({count:+document.getElementById('count').value,days:+document.getElementById('days').value,email:document.getElementById('email').value})
  });
@@ -443,32 +492,32 @@ async function generate(){
  if(d.keys){m.innerHTML='<div class="msg ok">Keys: '+d.keys.join('<br>')+'</div>'}
  else{m.innerHTML='<div class="msg err">'+(d.error||'Error')+'</div>'}
 }
+
 async function loadList(){
- const r=await fetch('/api/list?admin='+P);
+ const r=await fetch('/api/list?admin='+encodeURIComponent(P));
  const d=await r.json();
+ renderList(d.licenses||[]);
+}
+
+function renderList(licenses){
  const tb=document.getElementById('tbody');
  tb.innerHTML='';
- (d.licenses||[]).forEach(l=>{
+ licenses.forEach(l=>{
   const tr=document.createElement('tr');
-  tr.innerHTML=`<td>${l.key}</td><td>${l.status}</td><td>${l.machine_id||'—'}</td><td>${l.activated_at||'—'}</td><td>${l.expires_at||'—'}</td><td>${l.reset_count}</td><td>${l.email||'—'}</td><td>${l.status==='active'?'<button class=\"reset\" onclick=\"resetKey(\\''+l.key+'\\')\">Reset</button>':''}</td>`;
+  tr.innerHTML=`<td>${l.key}</td><td>${l.status}</td><td>${l.machine_id||'—'}</td><td>${l.created_at||'—'}</td><td>${l.activated_at||'—'}</td><td>${l.expires_at||'—'}</td><td>${l.reset_count}</td><td>${l.email||'—'}</td><td>${l.status==='active'?'<button class=\"reset\" onclick=\"resetKey(\\''+l.key+'\\')\">Reset</button>':''}</td>`;
   tb.appendChild(tr);
  });
 }
+
 async function resetKey(key){
  if(!confirm('Reset binding for '+key+'?'))return;
- const r=await fetch('/api/reset?admin='+P,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
+ const r=await fetch('/api/reset?admin='+encodeURIComponent(P),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
  const d=await r.json();
  if(d.ok){loadList()}else{alert(d.error||'Error')}
 }
-loadList();
 </script>
 </body></html>
 """
-
-
-@app.context_processor
-def inject_admin_pwd():
-    return {"admin_pwd": ADMIN_PASSWORD}
 
 
 if __name__ == "__main__":
