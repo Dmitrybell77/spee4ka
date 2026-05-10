@@ -1,0 +1,30 @@
+name: Uptime Monitor
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check spee4ka.ru
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://spee4ka.ru/)
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: spee4ka.ru returned $STATUS"
+            exit 1
+          fi
+          echo "OK: spee4ka.ru is up"
+
+      - name: Check license API
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 -X POST https://spee4ka.ru/api/check -H "Content-Type: application/json" -d '{"key":"test","machine_id":"test"}')
+          echo "API status: $STATUS"
+          if [ "$STATUS" = "000" ]; then
+            echo "FAIL: license API is not responding"
+            exit 1
+          fi
+          echo "OK: license API is responding"
