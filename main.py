@@ -48,6 +48,12 @@ from yandex.cloud.ai.stt.v3 import stt_service_pb2_grpc as stt_service
 # ─────────────────── Config ───────────────────
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
+# Ensure local modules (license_manager, crypto_utils, etc.) are always importable
+# regardless of how the launcher invokes Python (cwd, -m flag, etc.)
+_app_dir = str(ROOT)
+if _app_dir not in sys.path:
+    sys.path.insert(0, _app_dir)
+
 if getattr(sys, 'frozen', False):
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
