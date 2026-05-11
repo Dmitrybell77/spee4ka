@@ -1,8 +1,24 @@
 """Activation dialog — runs as a standalone subprocess."""
+import os
 import sys
+from pathlib import Path
+
+# Must set TCL/TK paths BEFORE importing tkinter (embedded Python doesn't auto-discover)
+_py_dir = Path(sys.executable).parent
+_dlls_dir = _py_dir / "DLLs"
+if _dlls_dir.is_dir():
+    os.add_dll_directory(str(_dlls_dir))
+for _d in [_py_dir / "tcl8.6", _py_dir / "tcl9.0"]:
+    if _d.is_dir():
+        os.environ.setdefault("TCL_LIBRARY", str(_d))
+        break
+for _d in [_py_dir / "tk8.6", _py_dir / "tk9.0"]:
+    if _d.is_dir():
+        os.environ.setdefault("TK_LIBRARY", str(_d))
+        break
+
 import tkinter as tk
 from tkinter import ttk
-from pathlib import Path
 
 ROOT = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent
 sys.path.insert(0, str(ROOT))
