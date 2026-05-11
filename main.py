@@ -1334,7 +1334,13 @@ def main():
             _check_license()
 
     threading.Thread(target=_periodic_license_check, daemon=True, name="license-check").start()
-    threading.Thread(target=_check_for_updates, daemon=True, name="update-check").start()
+    def _update_check_loop():
+        time.sleep(8)  # wait for tray icon to be ready
+        while True:
+            _check_for_updates()
+            time.sleep(24 * 3600)
+
+    threading.Thread(target=_update_check_loop, daemon=True, name="update-check").start()
 
     if PRELOAD_LOCAL:
         def _preload_and_test():
