@@ -18,6 +18,14 @@ MACHINE_ID = _get_volume_serial()
 GRACE_PERIOD_DAYS = 30
 CHECK_INTERVAL_SEC = 24 * 3600
 
+# Server errors that mean "this key is gone, drop the cache".
+# Anything else (rate limit, server bug, network) keeps the cache so grace period works.
+_DEFINITIVE_INVALID_ERRORS = {
+    "key_not_found", "key not found",
+    "machine_mismatch", "machine_id mismatch",
+    "expired", "license expired",
+}
+
 
 def _license_path(root: Path) -> Path:
     appdata = os.environ.get("APPDATA")
@@ -38,7 +46,9 @@ def _read_local(root: Path) -> Optional[dict]:
                 shutil.copy2(old, p)
                 old.unlink()
                 log.info("Migrated license.dat to APPDATA")
-            except Exception:
+            except Exception as ex:
+                # Migration failed — fall back to reading from the old location directly
+                log.warning(f"License migration failed, using legacy path: {ex}")
                 p = old
     if not p.exists():
         return None
@@ -112,21 +122,33 @@ def check(root: Path) -> dict:
             json={"key": key, "machine_id": MACHINE_ID},
             timeout=10,
         )
-        data = resp.json()
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
         if resp.status_code == 200 and data.get("valid"):
             _write_local(root, key, "active", data.get("expires", ""), time.time())
             return {"valid": True, "expires": data.get("expires", "")}
-        _clear_local(root)
-        return {"valid": False, "error": data.get("error", "invalid")}
+
+        error = data.get("error", "")
+        # Only drop the cache on definitive negative answers. Rate-limits, 5xx, bad gateway
+        # and similar transient failures must fall through to the grace period below.
+        if error in _DEFINITIVE_INVALID_ERRORS:
+            _clear_local(root)
+            return {"valid": False, "error": error}
+
+        # Transient failure (rate limit, server bug, unexpected payload) — keep cache, use grace.
+        log.warning(f"License check transient failure (status={resp.status_code}, error={error!r})")
     except requests.RequestException as ex:
         log.warning(f"License check network error: {ex}")
-        if local:
-            elapsed = time.time() - local.get("checked_at", 0)
-            if elapsed < GRACE_PERIOD_DAYS * 86400:
-                log.info(f"Grace period: {elapsed / 86400:.1f} days since last check")
-                return {"valid": True, "expires": local.get("expires", ""), "grace": True}
-            return {"valid": False, "error": "grace_expired"}
-        return {"valid": False, "error": "no_connection"}
+
+    if local:
+        elapsed = time.time() - local.get("checked_at", 0)
+        if elapsed < GRACE_PERIOD_DAYS * 86400:
+            log.info(f"Grace period: {elapsed / 86400:.1f} days since last check")
+            return {"valid": True, "expires": local.get("expires", ""), "grace": True}
+        return {"valid": False, "error": "grace_expired"}
+    return {"valid": False, "error": "no_connection"}
 
 
 def _clear_local(root: Path):

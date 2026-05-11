@@ -59,11 +59,12 @@ if getattr(sys, 'frozen', False):
 load_dotenv(ROOT / ".env")
 
 try:
-    from crypto_utils import encrypt_env_file, decrypt_env_values
+    from crypto_utils import encrypt_env_file, decrypt_env_values, is_encrypted
     encrypt_env_file(ROOT / ".env")
     _decrypted = decrypt_env_values(ROOT / ".env")
     for _k, _v in _decrypted.items():
-        os.environ[_k] = _v
+        if not is_encrypted(_v):  # skip silently failed decryptions
+            os.environ[_k] = _v
 except ImportError:
     pass
 
@@ -73,8 +74,12 @@ _update_url: str = ""
 
 
 def _version_newer(remote: str, current: str) -> bool:
+    # Strip pre-release suffixes ("1.0.8-beta" → "1.0.8") so they don't crash the parse.
+    def _parse(v: str) -> tuple:
+        v = v.split("-", 1)[0].split("+", 1)[0]
+        return tuple(int(x) for x in v.split(".") if x.isdigit())
     try:
-        return tuple(int(x) for x in remote.split(".")) > tuple(int(x) for x in current.split("."))
+        return _parse(remote) > _parse(current)
     except Exception:
         return False
 
@@ -86,7 +91,8 @@ def _check_for_updates():
         data = resp.json()
         remote = data.get("version", "")
         url = data.get("url", "")
-        if remote and url and _version_newer(remote, APP_VERSION):
+        ALLOWED_PREFIX = "https://github.com/Dmitrybell77/spee4ka/"
+        if remote and url and url.startswith(ALLOWED_PREFIX) and _version_newer(remote, APP_VERSION):
             _update_available = remote
             _update_url = url
             if tray_icon:
@@ -116,9 +122,60 @@ def _check_license() -> bool:
         log.warning("license_manager not available — skipping license check")
         return True
 
-CFG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+_CFG_DEFAULTS = {
+    "hotkey": "right ctrl",
+    "stt_lang": "ru-RU",
+    "llm_model": "yandexgpt-lite/latest",
+    "polish": True,
+    "min_duration_sec": 0.3,
+    "restore_clipboard_after_sec": 1.0,
+    "audio_chunk_ms": 250,
+    "preroll_ms": 250,
+    "postroll_ms": 300,
+    "mode": "offline_first",
+    "local_model": "small",
+    "local_model_fallback": "tiny",
+    "local_language": "ru",
+    "local_compute_type": "int8",
+    "local_cpu_threads": 0,
+    "preload_local_at_start": True,
+}
 
-APP_VERSION = "1.0.8"
+
+def _load_config(path: Path) -> dict:
+    # If the user breaks config.json by hand-editing, we want a clear message
+    # instead of a silent crash that leaves no tray icon and no log entry.
+    try:
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        cfg = {}
+    except (json.JSONDecodeError, OSError) as ex:
+        try:
+            ctypes.windll.user32.MessageBoxW(
+                0,
+                f"Не удалось прочитать config.json:\n{ex}\n\n"
+                f"Файл будет сброшен на стандартные настройки.\n"
+                f"Сломанная копия сохранена рядом как config.json.bak",
+                "Спичка — ошибка конфигурации",
+                0x10 | 0x40000,  # MB_ICONERROR | MB_TOPMOST
+            )
+        except Exception:
+            pass
+        try:
+            backup = path.with_suffix(".json.bak")
+            path.replace(backup)
+        except Exception:
+            pass
+        cfg = {}
+    # Backfill anything the user removed or that wasn't there in older versions.
+    for k, v in _CFG_DEFAULTS.items():
+        cfg.setdefault(k, v)
+    return cfg
+
+
+CFG = _load_config(ROOT / "config.json")
+
+APP_VERSION = "1.0.9"
 VERSION_CHECK_URL = "https://spee4ka.ru/version.json"
 
 SAMPLE_RATE = 16000
@@ -210,92 +267,34 @@ def _show_already_running_dialog():
         pass
 
 
-def _show_activation_dialog() -> bool:
+def _launch_activation_window() -> None:
+    """Launch activation_window.py as a subprocess and block until it closes."""
     try:
-        import tkinter as tk
-        from tkinter import ttk
-        root = tk.Tk()
-        root.title("Спичка — Активация")
-        root.resizable(False, False)
-        root.attributes("-topmost", True)
+        import subprocess
+        candidates_py = [
+            ROOT / ".venv" / "Scripts" / "pythonw.exe",
+            ROOT.parent / "python" / "pythonw.exe",
+            ROOT / "python" / "pythonw.exe",
+        ]
+        python = next((str(p) for p in candidates_py if p.exists()), sys.executable)
 
-        font_label = ("Segoe UI", 10)
-        pad = {"padx": 20, "pady": 6}
+        candidates_script = [
+            Path(__file__).parent / "activation_window.py",
+            ROOT / "activation_window.py",
+        ]
+        activation_script = next((p for p in candidates_script if p.exists()), None)
 
-        tk.Label(root, text="Спичка", font=("Segoe UI", 14, "bold")).pack(**pad)
-        tk.Label(
-            root,
-            text="Введите лицензионный ключ для активации.\n"
-                 "Формат: SP4K-XXXX-XXXX-XXXX-XXXX",
-            font=font_label, justify="center",
-        ).pack(**pad)
+        if activation_script is None:
+            log.error("activation_window.py not found")
+            return
 
-        key_var = tk.StringVar()
-        entry_frame = tk.Frame(root)
-        entry_frame.pack(padx=20, pady=8)
-        key_entry = tk.Entry(entry_frame, textvariable=key_var, width=26, font=("Consolas", 11), justify="center")
-        key_entry.pack(side="left")
-        root.update()
-        key_entry.focus_force()
-
-        def _paste(event=None):
-            try:
-                import ctypes
-                ctypes.windll.user32.OpenClipboard(0)
-                handle = ctypes.windll.user32.GetClipboardData(13)  # CF_UNICODETEXT
-                text = ctypes.c_wchar_p(handle).value or ""
-                ctypes.windll.user32.CloseClipboard()
-            except Exception:
-                try:
-                    text = root.clipboard_get()
-                except Exception:
-                    text = ""
-            if text.strip():
-                key_var.set(text.strip())
-                key_entry.icursor(tk.END)
-            return "break"
-
-        key_entry.bind("<Control-v>", _paste)
-        key_entry.bind("<Control-V>", _paste)
-        tk.Button(entry_frame, text="📋", command=_paste, font=("Segoe UI", 10), width=2).pack(side="left", padx=(4, 0))
-
-        status_var = tk.StringVar(value="")
-        status_label = tk.Label(root, textvariable=status_var, font=("Segoe UI", 9), fg="red")
-        status_label.pack(padx=20)
-
-        result = [False]
-
-        def _activate():
-            key = key_var.get().strip().upper()
-            if not key:
-                status_var.set("Введите ключ")
-                return
-            status_var.set("Проверяю...")
-            root.update()
-            try:
-                from license_manager import activate
-                res = activate(key, ROOT)
-                if res.get("ok"):
-                    result[0] = True
-                    root.destroy()
-                else:
-                    status_var.set(res.get("error", "Ошибка активации"))
-            except ImportError:
-                status_var.set("Модуль лицензирования не найден")
-
-        btn_frame = tk.Frame(root)
-        btn_frame.pack(pady=10)
-        tk.Button(btn_frame, text="Активировать", command=_activate,
-                  width=14, font=font_label).pack(side="left", padx=8)
-        tk.Button(btn_frame, text="Выход", command=root.destroy,
-                  width=10, font=font_label).pack(side="left", padx=8)
-
-        root.bind("<Return>", lambda e: _activate())
-        root.mainloop()
-        return result[0]
-    except Exception as ex:
-        log.exception(f"Activation dialog error: {ex}")
-        return False
+        proc = subprocess.Popen(
+            [python, str(activation_script)],
+            cwd=str(activation_script.parent),
+        )
+        proc.wait()
+    except Exception:
+        log.exception("activation window error")
 
 
 # ─────────────────── Auth check ───────────────────
@@ -310,7 +309,35 @@ HAS_YANDEX = bool(
 )
 if not HAS_YANDEX:
     log.warning("Yandex credentials not set — running in offline-only mode.")
-    current_mode = "offline"
+    current_mode = "offline_first"
+
+
+def _reload_yandex_creds():
+    """Re-read .env and update Yandex globals. Called after settings save."""
+    global YANDEX_API_KEY, YANDEX_FOLDER_ID, HAS_YANDEX, current_mode
+    try:
+        from crypto_utils import decrypt_env_values, is_encrypted
+        decrypted = decrypt_env_values(ROOT / ".env")
+        new_key = decrypted.get("YANDEX_API_KEY", "").strip()
+        new_folder = decrypted.get("YANDEX_FOLDER_ID", "").strip()
+        if is_encrypted(new_key) or is_encrypted(new_folder):
+            log.warning("Yandex credentials decryption failed — keys unchanged")
+            return
+    except Exception:
+        new_key = os.environ.get("YANDEX_API_KEY", "").strip()
+        new_folder = os.environ.get("YANDEX_FOLDER_ID", "").strip()
+    YANDEX_API_KEY = new_key
+    YANDEX_FOLDER_ID = new_folder
+    HAS_YANDEX = bool(
+        YANDEX_API_KEY
+        and not YANDEX_API_KEY.startswith("AQVN_paste")
+        and YANDEX_FOLDER_ID
+        and not YANDEX_FOLDER_ID.startswith("b1g_paste")
+    )
+    if not HAS_YANDEX and current_mode in ("online", "online_first"):
+        current_mode = "offline_first"
+        log.warning("Yandex credentials missing — switched to offline_first")
+    log.info(f"Yandex creds reloaded: has_yandex={HAS_YANDEX}")
 
 
 # ─────────────────── Endpoints & prompts ───────────────────
@@ -410,7 +437,9 @@ def _make_session_options():
                 restriction_type=stt.LanguageRestrictionOptions.WHITELIST,
                 language_code=[STT_LANG],
             ),
-            audio_processing_type=stt.RecognitionModelOptions.REAL_TIME,
+            # FULL_DATA: сервер ждёт всю запись и обрабатывает целиком — точность заметно
+            # выше, чем у REAL_TIME, ценой ~1-2 сек задержки после отпускания клавиши.
+            audio_processing_type=stt.RecognitionModelOptions.FULL_DATA,
         ),
     )
 
@@ -859,14 +888,22 @@ def _copy_history_item(text: str):
         pass
 
 
+def _make_history_handler(full_text: str):
+    # pystray ≥ 0.19 strict-checks action signature: must be `(icon, item)` exactly.
+    # A closure (not a default arg) is the safe way to capture the per-item text.
+    def _handler(icon, item):
+        _copy_history_item(full_text)
+    return _handler
+
+
 def _history_items():
     try:
         entries = []
         if HISTORY_FILE.exists():
             try:
                 entries = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
-            except Exception:
-                pass
+            except Exception as ex:
+                log.warning(f"history parse: {ex}")
         if not entries:
             return [pystray.MenuItem("(история пуста)", None, enabled=False)]
         items = []
@@ -877,18 +914,22 @@ def _history_items():
             display = f"{date} {prefix}  {label_text[:55]}"
             if len(label_text) > 55:
                 display += "…"
-            txt = label_text
             items.append(
-                pystray.MenuItem(display, lambda icon, item, t=txt: _copy_history_item(t))
+                pystray.MenuItem(display, _make_history_handler(label_text))
             )
         return items
-    except Exception:
+    except Exception as ex:
+        log.exception(f"history menu build failed: {ex}")
         return [pystray.MenuItem("(ошибка истории)", None, enabled=False)]
 
 
 # ─────────────────── Paste ───────────────────
 
-def paste_text(text: str):
+def paste_text(text: str, origin_hwnd: int = 0):
+    # origin_hwnd kept in signature for callers but currently unused — Windows' foreground
+    # lock + child-control focus + Ctrl modifier residue make reliable restore too brittle.
+    # The user-facing contract: don't switch windows for ~1-2 sec after releasing the hotkey.
+    del origin_hwnd
     if not text:
         return
     prev = None
@@ -935,7 +976,7 @@ def _paste_worker():
             _paste_queue.task_done()
 
 
-def _do_local(audio_np: np.ndarray):
+def _do_local(audio_np: np.ndarray, origin_hwnd: int = 0):
     set_state("proc_local")
     raw = local_recognizer.transcribe(audio_np)
     if not raw:
@@ -952,11 +993,11 @@ def _do_local(audio_np: np.ndarray):
             log.warning(f"local polish failed: {ex}")
     else:
         log.info(f"local final: {final!r}")
-    paste_text(final)
+    paste_text(final, origin_hwnd)
     log.info("✓ pasted (offline)")
 
 
-def _do_online(text: str):
+def _do_online(text: str, origin_hwnd: int = 0):
     set_state("proc_online")
     log.info(f"online raw:   {text!r}")
     try:
@@ -966,11 +1007,11 @@ def _do_online(text: str):
         final = text
     if POLISH:
         log.info(f"online final: {final!r}")
-    paste_text(final)
+    paste_text(final, origin_hwnd)
     log.info("✓ pasted (online)")
 
 
-def _do_offline_first(audio_np: np.ndarray):
+def _do_offline_first(audio_np: np.ndarray, origin_hwnd: int = 0):
     """Whisper with dynamic timeout; on failure replay audio to Yandex."""
     duration = audio_np.shape[0] / SAMPLE_RATE
     timeout_sec = max(5.0, duration * 0.5)
@@ -997,7 +1038,7 @@ def _do_offline_first(audio_np: np.ndarray):
                 log.info(f"offline_first polished: {final!r}")
             except Exception as ex:
                 log.warning(f"offline_first polish failed: {ex}")
-        paste_text(final)
+        paste_text(final, origin_hwnd)
         log.info("✓ pasted (offline_first → Whisper)")
         return
 
@@ -1027,23 +1068,26 @@ def _do_offline_first(audio_np: np.ndarray):
     except Exception as ex:
         log.warning(f"offline_first: polish failed: {ex}")
         final = online_text
-    paste_text(final)
+    paste_text(final, origin_hwnd)
     log.info("✓ pasted (offline_first → Yandex fallback)")
 
 
 def process_release():
+    # Captured at on_press (the window the user was actually typing into).
+    # Read it BEFORE recorder.stop() so a fresh press during paste doesn't overwrite us.
+    origin_hwnd = _origin_hwnd_for_session
     online_text, audio_np = recorder.stop()
     if audio_np is None:
         return  # too short or double-release; icon already set to idle in on_release
 
     if current_mode == "offline_first":
-        _paste_queue.put(lambda np=audio_np: _do_offline_first(np))
+        _paste_queue.put(lambda np=audio_np, h=origin_hwnd: _do_offline_first(np, h))
     else:  # online_first: Yandex primary, Whisper fallback
         if online_text is None:
             log.info("→ Yandex unavailable, falling back to Whisper")
-            _paste_queue.put(lambda np=audio_np: _do_local(np))
+            _paste_queue.put(lambda np=audio_np, h=origin_hwnd: _do_local(np, h))
         elif online_text.strip():
-            _paste_queue.put(lambda t=online_text: _do_online(t))
+            _paste_queue.put(lambda t=online_text, h=origin_hwnd: _do_online(t, h))
         else:
             log.info("Yandex returned empty (silence?), nothing to paste")
 
@@ -1053,14 +1097,23 @@ def process_release():
 _RELEASE_DEBOUNCE_S = 0.15
 _release_timer: Optional[threading.Timer] = None
 
+# HWND of the window that was focused when the hotkey was pressed. Captured here so the
+# paste worker can return focus before sending Ctrl+V — otherwise text lands wherever the
+# user happened to click during processing (often the tray menu itself).
+_origin_hwnd_for_session: int = 0
+
 
 def on_press(_e):
-    global _release_timer
+    global _release_timer, _origin_hwnd_for_session
     # Cancel pending debounce — key came back, phantom release
     if _release_timer is not None:
         _release_timer.cancel()
         _release_timer = None
     if not recorder.recording:
+        try:
+            _origin_hwnd_for_session = ctypes.windll.user32.GetForegroundWindow()
+        except Exception:
+            _origin_hwnd_for_session = 0
         try:
             recorder.start()
             set_state("rec")
@@ -1091,6 +1144,7 @@ def on_release(_e):
 def _apply_settings(new_cfg: dict):
     """Apply saved settings live (no restart needed for mode, hotkey, polish)."""
     global current_mode, POLISH, HOTKEY, LOCAL_MODEL_NAME, LOCAL_LANGUAGE
+    _reload_yandex_creds()
     current_mode = new_cfg.get("mode", current_mode)
     POLISH = new_cfg.get("polish", POLISH)
     LOCAL_LANGUAGE = new_cfg.get("local_language")
@@ -1105,14 +1159,21 @@ def _apply_settings(new_cfg: dict):
 
     new_hotkey = new_cfg.get("hotkey", HOTKEY)
     if new_hotkey != HOTKEY:
+        old_hotkey = HOTKEY
         try:
-            keyboard.unhook_all()
+            # Bind the new hotkey FIRST so we never end up with zero hooks
+            # if the new one fails (otherwise user can't dictate at all).
+            keyboard.on_press_key(new_hotkey, on_press, suppress=False)
+            keyboard.on_release_key(new_hotkey, on_release, suppress=False)
+            # New hook is live — safe to remove the old hooks.
+            try:
+                keyboard.remove_hotkey(old_hotkey)
+            except Exception:
+                pass
             HOTKEY = new_hotkey
-            keyboard.on_press_key(HOTKEY, on_press, suppress=False)
-            keyboard.on_release_key(HOTKEY, on_release, suppress=False)
             log.info(f"hotkey rebound to [{HOTKEY}]")
         except Exception as ex:
-            log.warning(f"hotkey rebind failed: {ex}")
+            log.warning(f"hotkey rebind failed, keeping [{old_hotkey}]: {ex}")
 
     set_state("idle")
     log.info(f"settings applied: mode={current_mode} hotkey={HOTKEY} polish={POLISH}")
@@ -1153,18 +1214,26 @@ def _menu_open_settings(icon, item):
     threading.Thread(target=_run, daemon=True, name="settings-window").start()
 
 
-def _menu_open_log(icon, item):
+def _open_in_notepad(path: Path):
+    # Windows 11 23H2+ no longer has a default app for .log / .json, so os.startfile()
+    # silently does nothing. Always launch notepad.exe explicitly.
+    import subprocess
     try:
-        os.startfile(str(LOG_FILE))
-    except Exception as ex:
-        log.warning(f"open log: {ex}")
+        subprocess.Popen(["notepad.exe", str(path)])
+    except FileNotFoundError:
+        # extreme edge case: notepad missing → fall back to shell association
+        try:
+            os.startfile(str(path))
+        except Exception as ex:
+            log.warning(f"open {path.name}: {ex}")
+
+
+def _menu_open_log(icon, item):
+    _open_in_notepad(LOG_FILE)
 
 
 def _menu_open_config(icon, item):
-    try:
-        os.startfile(str(ROOT / "config.json"))
-    except Exception as ex:
-        log.warning(f"open config: {ex}")
+    _open_in_notepad(ROOT / "config.json")
 
 
 _activate_open = threading.Event()
@@ -1177,39 +1246,8 @@ def _menu_activate(icon, item):
 
     def _run():
         try:
-            import subprocess
-            # Find Python: venv (dev) → embedded (installed) → fallback
-            candidates_py = [
-                ROOT / ".venv" / "Scripts" / "pythonw.exe",
-                ROOT.parent / "python" / "pythonw.exe",
-                ROOT / "python" / "pythonw.exe",
-            ]
-            python = next((str(p) for p in candidates_py if p.exists()), sys.executable)
-
-            # Find activation_window.py in script dir or ROOT
-            candidates_script = [
-                Path(__file__).parent / "activation_window.py",
-                ROOT / "activation_window.py",
-            ]
-            activation_script = next((p for p in candidates_script if p.exists()), None)
-
-            if activation_script is None:
-                log.error("activation_window.py not found")
-                if tray_icon:
-                    tray_icon.notify(
-                        "Файл активации не найден. Переустановите приложение.",
-                        "Спичка — Ошибка"
-                    )
-                return
-
-            proc = subprocess.Popen(
-                [python, str(activation_script)],
-                cwd=str(activation_script.parent),
-            )
-            proc.wait()
+            _launch_activation_window()
             _check_license()
-        except Exception:
-            log.exception("activation window error")
         finally:
             _activate_open.clear()
 
@@ -1249,19 +1287,19 @@ def _menu_mode_online_first(icon, item):
 
 def _build_menu():
     return pystray.Menu(
-        pystray.MenuItem(f"Спичка  ▸ зажми [{HOTKEY}]", None, enabled=False),
+        pystray.MenuItem(f"🎤  Спичка — зажми [{HOTKEY}]", None, enabled=False),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(
-            "Mode",
+            "⚙  Режим работы",
             pystray.Menu(
                 pystray.MenuItem(
-                    "Offline-first (Whisper → Yandex)",
+                    "Офлайн-first  (Whisper → Яндекс)",
                     _menu_mode_offline_first,
                     checked=lambda item: current_mode == "offline_first",
                     radio=True,
                 ),
                 pystray.MenuItem(
-                    "Online-first (Yandex → Whisper)",
+                    "Онлайн-first  (Яндекс → Whisper)",
                     _menu_mode_online_first,
                     checked=lambda item: current_mode == "online_first",
                     enabled=lambda item: HAS_YANDEX,
@@ -1270,25 +1308,25 @@ def _build_menu():
             ),
         ),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Настройки", _menu_open_settings),
-        pystray.MenuItem("История", pystray.Menu(_history_items)),
+        pystray.MenuItem("🛠   Настройки",     _menu_open_settings),
+        pystray.MenuItem("🕘  История",       pystray.Menu(_history_items)),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(
-            lambda _: f"Лицензия: {'✓ Активирована' if _license_valid else '✗ Не активирована'}",
+            lambda _: f"🔑  Лицензия:  {'✓ активна' if _license_valid else '✗ не активна'}",
             None, enabled=False,
         ),
-        pystray.MenuItem("Ввести ключ активации", _menu_activate),
+        pystray.MenuItem("    Ввести ключ активации", _menu_activate),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Open log", _menu_open_log),
-        pystray.MenuItem("Open config", _menu_open_config),
+        pystray.MenuItem("📄  Открыть лог",    _menu_open_log),
+        pystray.MenuItem("📝  Открыть конфиг", _menu_open_config),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem(f"Версия {APP_VERSION}", None, enabled=False),
+        pystray.MenuItem(f"ℹ   Версия {APP_VERSION}", None, enabled=False),
         *(
-            [pystray.MenuItem(f"⬇ Обновление {_update_available} — скачать", _menu_download_update)]
+            [pystray.MenuItem(f"⬇  Обновление {_update_available} — скачать", _menu_download_update)]
             if _update_available else []
         ),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Exit", _menu_exit),
+        pystray.MenuItem("⏻   Выход", _menu_exit),
     )
 
 
@@ -1309,7 +1347,8 @@ def main():
         pass  # first_run.py not present — skip (dev mode)
 
     if not _check_license():
-        if not _show_activation_dialog():
+        _launch_activation_window()
+        if not _check_license():
             log.info("No valid license — exiting")
             sys.exit(0)
 

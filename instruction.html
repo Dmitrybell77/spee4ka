@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Спичка — Инструкция</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="alternate icon" href="favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&family=Geologica:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #F7F5F0;
+    --bg2: #EFEFEA;
+    --ink: #1A1915;
+    --ink2: #6B6860;
+    --ink3: #A8A59E;
+    --border: rgba(26,25,21,0.1);
+    --border2: rgba(26,25,21,0.18);
+    --green: #2D5A27;
+    --green-bg: #EBF2EA;
+    --blue: #1A3A5C;
+    --blue-bg: #EAF0F5;
+    --purple: #7C3AED;
+    --serif: 'Playfair Display', Georgia, serif;
+    --sans: 'Geologica', system-ui, sans-serif;
+    --mono: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.7;
+    font-size: 16px;
+  }
+
+  header {
+    background: var(--ink);
+    color: #fff;
+    padding: 18px 40px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  header img { width: 28px; height: 28px; }
+
+  header a {
+    color: #fff;
+    text-decoration: none;
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: .01em;
+  }
+
+  header span {
+    color: rgba(255,255,255,0.35);
+    margin: 0 8px;
+  }
+
+  header .page-title {
+    color: rgba(255,255,255,0.65);
+    font-size: 1rem;
+    font-weight: 300;
+  }
+
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 56px 24px 80px;
+  }
+
+  .hero {
+    margin-bottom: 56px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border2);
+  }
+
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: 2.4rem;
+    line-height: 1.2;
+    margin-bottom: 16px;
+  }
+
+  .hero p {
+    font-size: 1.05rem;
+    color: var(--ink2);
+    max-width: 560px;
+  }
+
+  /* TOC */
+  .toc {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 56px;
+  }
+
+  .toc h2 {
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--ink3);
+    margin-bottom: 14px;
+  }
+
+  .toc ol {
+    padding-left: 20px;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--ink);
+    text-decoration: none;
+    font-size: .95rem;
+  }
+
+  .toc a:hover { text-decoration: underline; }
+
+  /* Sections */
+  section {
+    margin-bottom: 64px;
+  }
+
+  section h2 {
+    font-size: 1.45rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  section h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 28px 0 10px;
+    color: var(--ink);
+  }
+
+  section p {
+    color: var(--ink2);
+    margin-bottom: 14px;
+  }
+
+  /* Comparison cards */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+
+  @media (max-width: 560px) {
+    .compare { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 22px;
+  }
+
+  .card .card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .card .card-sub {
+    font-size: .8rem;
+    color: var(--ink3);
+    margin-bottom: 16px;
+  }
+
+  .card ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .card ul li {
+    font-size: .9rem;
+    color: var(--ink2);
+    padding: 4px 0;
+    padding-left: 20px;
+    position: relative;
+  }
+
+  .card ul li::before {
+    position: absolute;
+    left: 0;
+  }
+
+  .card.plus ul li::before { content: '✓'; color: var(--green); }
+  .card.minus ul li::before { content: '·'; color: var(--ink3); }
+
+  .card .note {
+    margin-top: 14px;
+    font-size: .82rem;
+    color: var(--ink3);
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+
+  /* Mode pills */
+  .modes {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 20px 0;
+  }
+
+  .mode-row {
+    background: #fff;
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .mode-badge {
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+
+  .badge-offline { background: var(--blue-bg); color: var(--blue); }
+  .badge-online  { background: var(--green-bg); color: var(--green); }
+
+  .mode-row p {
+    font-size: .9rem;
+    color: var(--ink2);
+    margin: 0;
+  }
+
+  /* Steps */
+  .steps {
+    counter-reset: step;
+  }
+
+  .step {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 28px;
+    align-items: flex-start;
+  }
+
+  .step-num {
+    counter-increment: step;
+    min-width: 36px;
+    height: 36px;
+    background: var(--ink);
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .85rem;
+    font-weight: 600;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .step-body h3 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+  }
+
+  .step-body p {
+    margin: 0 0 8px;
+    font-size: .92rem;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: .85rem;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    padding: 2px 8px;
+    border-radius: 5px;
+    color: var(--purple);
+  }
+
+  .code-block {
+    font-family: var(--mono);
+    font-size: .85rem;
+    background: var(--ink);
+    color: #c8e6c9;
+    padding: 14px 18px;
+    border-radius: 10px;
+    margin: 10px 0;
+    overflow-x: auto;
+    letter-spacing: .02em;
+  }
+
+  /* Tip box */
+  .tip {
+    background: var(--blue-bg);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: .9rem;
+    color: var(--blue);
+  }
+
+  .tip strong { display: block; margin-bottom: 4px; }
+
+  /* Pricing note */
+  .price-note {
+    background: var(--green-bg);
+    border: 1px solid rgba(45,90,39,0.2);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: .9rem;
+    color: var(--green);
+    margin: 16px 0;
+  }
+
+  footer {
+    text-align: center;
+    padding: 32px;
+    font-size: .85rem;
+    color: var(--ink3);
+    border-top: 1px solid var(--border);
+  }
+
+  footer a { color: var(--ink2); }
+</style>
+</head>
+<body>
+
+<header>
+  <img src="logo.svg" alt="Спичка">
+  <a href="/">Спичка</a>
+  <span>/</span>
+  <span class="page-title">Инструкция</span>
+</header>
+
+<div class="container">
+
+  <div class="hero">
+    <h1>Инструкция по настройке</h1>
+    <p>Как выбрать режим распознавания речи и подключить Яндекс API для максимального качества.</p>
+  </div>
+
+  <nav class="toc">
+    <h2>Содержание</h2>
+    <ol>
+      <li><a href="#modes">Whisper и Яндекс — в чём разница</a></li>
+      <li><a href="#choose">Какой режим выбрать</a></li>
+      <li><a href="#yandex-api">Подключение Яндекс API — пошаговая инструкция</a></li>
+    </ol>
+  </nav>
+
+  <!-- SECTION 1 -->
+  <section id="modes">
+    <h2>1. Whisper и Яндекс — в чём разница</h2>
+
+    <p>Спичка умеет распознавать речь двумя способами. Вы сами выбираете, какой использовать — в любой момент через настройки.</p>
+
+    <div class="compare">
+      <div class="card">
+        <div class="card-title">🖥 Whisper</div>
+        <div class="card-sub">Офлайн · на вашем компьютере</div>
+        <ul class="plus">
+          <li>Работает без интернета</li>
+          <li>Бесплатно, без лимитов</li>
+          <li>Запись никуда не уходит</li>
+          <li>Не нужно ничего настраивать</li>
+        </ul>
+        <ul class="minus" style="margin-top:10px">
+          <li>Обработка 1–3 секунды</li>
+          <li>Точность чуть ниже</li>
+          <li>Нагружает процессор</li>
+        </ul>
+        <div class="note">Работает сразу после установки</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">☁️ Яндекс SpeechKit</div>
+        <div class="card-sub">Онлайн · облако Яндекса</div>
+        <ul class="plus">
+          <li>Очень высокая точность</li>
+          <li>Быстрее вставляет — аудио обрабатывается по ходу записи</li>
+          <li>Хорошо понимает термины</li>
+          <li>Лучше с акцентом и быстрой речью</li>
+        </ul>
+        <ul class="minus" style="margin-top:10px">
+          <li>Нужен интернет</li>
+          <li>Платно (~100–300 ₽/мес)</li>
+          <li>Требует настройки API</li>
+        </ul>
+        <div class="note">Нужно подключить по инструкции ниже</div>
+      </div>
+    </div>
+
+    <p>Помимо распознавания, Спичка использует <strong>YandexGPT</strong> для полировки текста — убирает слова-паразиты, расставляет знаки препинания, делает речь письменной. Это тоже работает через Яндекс API.</p>
+  </section>
+
+  <!-- SECTION 2 -->
+  <section id="choose">
+    <h2>2. Какой режим выбрать</h2>
+
+    <p>В настройках Спички два режима — переключить можно в любой момент через правый клик по иконке в трее → <strong>Mode</strong>.</p>
+
+    <div class="modes">
+      <div class="mode-row">
+        <span class="mode-badge badge-offline">Offline First</span>
+        <p><strong>Сначала Whisper, Яндекс как запасной.</strong> Подходит если интернет есть не всегда, или вы ещё не подключили Яндекс API. Работает сразу после установки.</p>
+      </div>
+      <div class="mode-row">
+        <span class="mode-badge badge-online">Online First</span>
+        <p><strong>Сначала Яндекс, Whisper как запасной.</strong> Рекомендуется если Яндекс API подключён — получите лучшее качество при наличии интернета. Если связь пропадёт, Whisper подхватит автоматически.</p>
+      </div>
+    </div>
+
+    <div class="tip">
+      <strong>Совет</strong>
+      Если Яндекс API не подключён — оба режима работают только через Whisper. Разницы нет.
+    </div>
+  </section>
+
+  <!-- SECTION 3 -->
+  <section id="yandex-api">
+    <h2>3. Подключение Яндекс API <span style="font-size:0.6em;font-weight:400;color:var(--ink3);font-family:var(--sans);letter-spacing:0">(не обязательно)</span></h2>
+
+    <p>Спичка работает и без этого шага — Whisper распознаёт речь прямо на вашем компьютере, без интернета. Яндекс API даёт более высокое качество, но подключать его не обязательно.</p>
+    <p style="margin-top:10px">Если решите подключить — нужно получить два значения: <strong>API-ключ</strong> и <strong>ID каталога</strong>. Это займёт около 10 минут.</p>
+
+    <div class="price-note">
+      💳 Новым пользователям Яндекс Облако даёт <strong>4 000 ₽ бесплатно</strong> на старт. SpeechKit стоит ~0.16 ₽ за 15 секунд речи. При обычном использовании хватает на несколько месяцев.
+    </div>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Создать аккаунт в Яндекс Облаке</h3>
+          <p>Зайти на <strong>console.yandex.cloud</strong> и войти через обычный аккаунт на Яндексе. При первом входе предложат создать платёжный аккаунт — выбрать <strong>Физическое лицо</strong>, привязать карту для верификации (деньги сразу не снимаются).</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Узнать ID каталога</h3>
+          <p>В консоли слева нажать на свой <strong>каталог</strong> (по умолчанию называется «default»). ID будет виден в свойствах — строка вида:</p>
+          <div class="code-block">b1gxxxxxxxxxxxxxxxxx</div>
+          <p>Скопировать — это понадобится в конце.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Получить API-ключ</h3>
+          <p>В левом меню консоли: <strong>IAM → Сервисные аккаунты</strong>. Открыть свой аккаунт → вкладка <strong>API-ключи → Создать API-ключ</strong>.</p>
+          <p>Ключ покажут <strong>один раз</strong> — сразу скопировать. Выглядит так:</p>
+          <div class="code-block">AQVN••••••••••••••••••••••••••••••••••</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Ввести ключи в Спичку</h3>
+          <p>Правый клик по иконке Спички в трее → <strong>Настройки</strong>.</p>
+          <p>Вставить:</p>
+          <ul style="list-style:none;padding:0;margin:8px 0">
+            <li style="padding:4px 0;color:var(--ink2)">· <strong>Яндекс API ключ</strong> — строка <code>AQVN...</code></li>
+            <li style="padding:4px 0;color:var(--ink2)">· <strong>ID каталога</strong> — строка <code>b1g...</code></li>
+          </ul>
+          <p>Нажать <strong>Сохранить</strong>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h3>Включить Online First</h3>
+          <p>Правый клик по иконке в трее → <strong>Mode → Online First</strong>. Теперь Яндекс будет основным движком. Если интернет пропадёт — Спичка автоматически переключится на Whisper.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="tip">
+      <strong>Всё готово</strong>
+      Продиктуйте любую фразу — в логе увидите <em>pasted (online)</em>, это значит Яндекс работает.
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <a href="/">← Вернуться на главную</a> &nbsp;·&nbsp; Спичка © 2025
+</footer>
+
+</body>
+</html>

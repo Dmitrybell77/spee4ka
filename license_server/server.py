@@ -1,10 +1,11 @@
 import secrets
 import sqlite3
-import hashlib
-import hmac
 import os
 import uuid
+import time
 import logging
+import threading
+from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -17,8 +18,40 @@ log = logging.getLogger("spee4ka.server")
 app = Flask(__name__)
 
 DB_PATH = os.environ.get("SPEE4KA_DB", "licenses.db")
-ADMIN_PASSWORD = os.environ.get("SPEE4KA_ADMIN_PASSWORD", "changeme")
-HMAC_SECRET = os.environ.get("SPEE4KA_HMAC_SECRET", "hmac-secret-key").encode()
+
+ADMIN_PASSWORD = os.environ.get("SPEE4KA_ADMIN_PASSWORD", "")
+if not ADMIN_PASSWORD:
+    raise RuntimeError("SPEE4KA_ADMIN_PASSWORD env variable is required")
+
+# Simple in-memory rate limiter: 10 requests per IP per 60 seconds
+_rate_buckets: dict = defaultdict(list)
+_rate_lock = threading.Lock()
+_rate_gc_counter = 0
+RATE_LIMIT_MAX = 10
+RATE_LIMIT_WINDOW = 60
+_RATE_GC_EVERY = 200  # prune stale IPs every N rate checks
+
+
+def _is_rate_limited(ip: str) -> bool:
+    global _rate_gc_counter
+    now = time.time()
+    with _rate_lock:
+        _rate_gc_counter += 1
+        if _rate_gc_counter >= _RATE_GC_EVERY:
+            _rate_gc_counter = 0
+            stale = [
+                k for k, v in _rate_buckets.items()
+                if not v or now - v[-1] > RATE_LIMIT_WINDOW
+            ]
+            for k in stale:
+                del _rate_buckets[k]
+
+        bucket = [t for t in _rate_buckets[ip] if now - t < RATE_LIMIT_WINDOW]
+        _rate_buckets[ip] = bucket
+        if len(bucket) >= RATE_LIMIT_MAX:
+            return True
+        _rate_buckets[ip].append(now)
+        return False
 
 YUKASSA_SHOP_ID = os.environ.get("YUKASSA_SHOP_ID", "")
 YUKASSA_SECRET_KEY = os.environ.get("YUKASSA_SECRET_KEY", "")
@@ -54,6 +87,9 @@ def _init_db():
             payment_id TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         );
+        -- Partial unique index protects against duplicate webhook deliveries from YuKassa.
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_licenses_order_id
+            ON licenses(order_id) WHERE order_id IS NOT NULL AND order_id != '';
     """)
     conn.commit()
     conn.close()
@@ -67,15 +103,22 @@ def generate_key() -> str:
     return "SP4K-" + "-".join(parts)
 
 
-def _verify_hmac(data: str, signature: str) -> bool:
-    expected = hmac.new(HMAC_SECRET, data.encode(), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
+def _admin_password_from_request() -> str:
+    # Prefer header to keep the password out of nginx access logs.
+    # Query-string fallback is retained only for legacy clients/bookmarks.
+    pwd = request.headers.get("X-Admin-Password", "")
+    if not pwd:
+        body = request.get_json(silent=True) or {}
+        pwd = body.get("admin_password", "")
+    if not pwd:
+        pwd = request.args.get("admin", "")
+    return pwd
 
 
 def _admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        pwd = request.args.get("admin") or request.headers.get("X-Admin-Password", "")
+        pwd = _admin_password_from_request()
         if pwd != ADMIN_PASSWORD:
             return jsonify({"error": "unauthorized"}), 401
         return f(*args, **kwargs)
@@ -84,6 +127,10 @@ def _admin_required(f):
 
 @app.route("/api/activate", methods=["POST"])
 def api_activate():
+    ip = request.headers.get("X-Real-IP") or request.remote_addr
+    if _is_rate_limited(ip):
+        return jsonify({"valid": False, "error": "too_many_requests"}), 429
+
     data = request.json or {}
     key = (data.get("key") or "").strip().upper()
     machine_id = (data.get("machine_id") or "").strip()
@@ -96,7 +143,7 @@ def api_activate():
 
     if not row:
         conn.close()
-        return jsonify({"valid": False, "error": "key not found"}), 404
+        return jsonify({"valid": False, "error": "key_not_found"}), 404
 
     if row["status"] == "unused":
         conn.execute(
@@ -114,14 +161,19 @@ def api_activate():
             conn.close()
             return jsonify({"valid": True, "expires": expires})
         conn.close()
-        return jsonify({"valid": False, "error": "key already bound to another device"}), 403
+        # Same error code for "not found" and "wrong device" — prevents enumeration
+        return jsonify({"valid": False, "error": "key_not_found"}), 404
 
     conn.close()
-    return jsonify({"valid": False, "error": f"key status: {row['status']}"}), 403
+    return jsonify({"valid": False, "error": "key_not_found"}), 404
 
 
 @app.route("/api/check", methods=["POST"])
 def api_check():
+    ip = request.headers.get("X-Real-IP") or request.remote_addr
+    if _is_rate_limited(ip):
+        return jsonify({"valid": False, "error": "too_many_requests"}), 429
+
     data = request.json or {}
     key = (data.get("key") or "").strip().upper()
     machine_id = (data.get("machine_id") or "").strip()
@@ -285,17 +337,23 @@ def payment_webhook():
     ).fetchone()
     if existing:
         conn.close()
+        log.info(f"Duplicate webhook for order={order_id}, ignored")
         return jsonify({"ok": True})
 
     key = generate_key()
     expires = (datetime.utcnow() + timedelta(days=LICENSE_DAYS)).isoformat()
-    conn.execute(
-        "INSERT INTO licenses (key, expires_at, email, order_id, payment_id) VALUES (?, ?, ?, ?, ?)",
-        (key, expires, email, order_id, payment_id),
-    )
-    conn.commit()
-    conn.close()
-    log.info(f"License issued: {key[:9]}... order={order_id} email={email}")
+    try:
+        conn.execute(
+            "INSERT INTO licenses (key, expires_at, email, order_id, payment_id) VALUES (?, ?, ?, ?, ?)",
+            (key, expires, email, order_id, payment_id),
+        )
+        conn.commit()
+        log.info(f"License issued: {key[:9]}... order={order_id} email={email}")
+    except sqlite3.IntegrityError:
+        # Race: a parallel webhook delivery beat us to the UNIQUE order_id index.
+        log.info(f"Concurrent webhook for order={order_id}, ignored")
+    finally:
+        conn.close()
     return jsonify({"ok": True})
 
 
@@ -358,7 +416,7 @@ localStorage.removeItem('spee4ka_order_id');
 </div>
 <div class="step">
   <b>Шаг 1 — Скачайте и установите Спичку:</b><br><br>
-  <a href="https://github.com/Dmitrybell77/spee4ka/releases/download/v1.0.0/Spee4ka_Setup.exe"
+  <a href="https://github.com/Dmitrybell77/spee4ka/releases/latest/download/Spee4ka_Setup.exe"
      style="display:inline-block;padding:12px 32px;background:#4338ca;color:#fff;border-radius:8px;text-decoration:none;font-size:1rem;font-weight:600;">
     ⬇ Скачать Спичку для Windows
   </a><br>
@@ -468,11 +526,17 @@ function login(){
   tryEnter();
 }
 
+function authHeaders(extra){
+  const h = Object.assign({'X-Admin-Password': P}, extra || {});
+  return h;
+}
+
 async function tryEnter(){
-  const r = await fetch('/api/list?admin='+encodeURIComponent(P));
+  const r = await fetch('/api/list', {headers: authHeaders()});
   if(r.status === 401){
     document.getElementById('login-err').style.display='block';
     P = '';
+    sessionStorage.removeItem('adm');
     return;
   }
   sessionStorage.setItem('adm', P);
@@ -483,8 +547,9 @@ async function tryEnter(){
 }
 
 async function generate(){
- const r=await fetch('/api/generate?admin='+encodeURIComponent(P),{
-  method:'POST',headers:{'Content-Type':'application/json'},
+ const r=await fetch('/api/generate',{
+  method:'POST',
+  headers: authHeaders({'Content-Type':'application/json'}),
   body:JSON.stringify({count:+document.getElementById('count').value,days:+document.getElementById('days').value,email:document.getElementById('email').value})
  });
  const d=await r.json();
@@ -494,7 +559,7 @@ async function generate(){
 }
 
 async function loadList(){
- const r=await fetch('/api/list?admin='+encodeURIComponent(P));
+ const r=await fetch('/api/list', {headers: authHeaders()});
  const d=await r.json();
  renderList(d.licenses||[]);
 }
@@ -511,7 +576,11 @@ function renderList(licenses){
 
 async function resetKey(key){
  if(!confirm('Reset binding for '+key+'?'))return;
- const r=await fetch('/api/reset?admin='+encodeURIComponent(P),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
+ const r=await fetch('/api/reset',{
+  method:'POST',
+  headers: authHeaders({'Content-Type':'application/json'}),
+  body:JSON.stringify({key})
+ });
  const d=await r.json();
  if(d.ok){loadList()}else{alert(d.error||'Error')}
 }
@@ -522,6 +591,5 @@ async function resetKey(key){
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    _init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)

@@ -118,30 +118,62 @@ def check_and_download_model(models_dir: Path) -> bool:
     result = [False]
     error = [None]
 
+    # ── Palette (in sync with settings_window.py / activation_window.py) ──
+    BG     = "#f6f6fa"
+    CARD   = "#ffffff"
+    TEXT   = "#1f2937"
+    MUTED  = "#6b7280"
+    ACCENT = "#4338ca"
+    BORDER = "#e5e7eb"
+
     root = tk.Tk()
     root.title("Спичка — Первый запуск")
+    root.configure(bg=BG)
     root.resizable(False, False)
     root.attributes("-topmost", True)
 
-    font = ("Segoe UI", 10)
-    pad = {"padx": 20, "pady": 6}
+    card = tk.Frame(root, bg=CARD, highlightbackground=BORDER, highlightthickness=1)
+    card.pack(padx=22, pady=22, ipadx=28, ipady=22)
 
-    tk.Label(root, text="Спичка", font=("Segoe UI", 14, "bold")).pack(**pad)
+    tk.Label(card, text="🎤  Спичка", font=("Segoe UI", 18, "bold"),
+             bg=CARD, fg=TEXT).pack(anchor="w")
+    tk.Label(card, text="Первый запуск", font=("Segoe UI", 10),
+             bg=CARD, fg=MUTED).pack(anchor="w", pady=(0, 14))
+
     tk.Label(
-        root,
-        text="Скачивается модель распознавания речи Whisper\n(~464 МБ, только при первом запуске)",
-        font=font, justify="center"
-    ).pack(**pad)
+        card,
+        text="Скачиваем модель распознавания речи Whisper.\n"
+             "~464 МБ, нужна только при первом запуске.",
+        font=("Segoe UI", 10), bg=CARD, fg=TEXT, justify="left",
+    ).pack(anchor="w", pady=(0, 12))
 
-    status_var = tk.StringVar(value="Подготовка...")
-    tk.Label(root, textvariable=status_var, font=("Segoe UI", 9), fg="gray").pack(padx=20)
+    status_var = tk.StringVar(value="Подготовка…")
+    tk.Label(card, textvariable=status_var, font=("Segoe UI", 9),
+             bg=CARD, fg=MUTED).pack(anchor="w")
+
+    # ttk progressbar styled to use the accent colour
+    style = ttk.Style(root)
+    try:
+        style.theme_use("clam")
+    except tk.TclError:
+        pass
+    style.configure(
+        "Modern.Horizontal.TProgressbar",
+        background=ACCENT, troughcolor="#eef0f5",
+        bordercolor=BORDER, lightcolor=ACCENT, darkcolor=ACCENT,
+        thickness=8,
+    )
 
     progress_var = tk.DoubleVar(value=0)
-    bar = ttk.Progressbar(root, variable=progress_var, maximum=100, length=380)
-    bar.pack(padx=20, pady=8)
+    bar = ttk.Progressbar(
+        card, variable=progress_var, maximum=100, length=380,
+        style="Modern.Horizontal.TProgressbar",
+    )
+    bar.pack(pady=(6, 4), fill="x")
 
     pct_var = tk.StringVar(value="0%")
-    tk.Label(root, textvariable=pct_var, font=font).pack(pady=2)
+    tk.Label(card, textvariable=pct_var, font=("Segoe UI", 10, "bold"),
+             bg=CARD, fg=ACCENT).pack(anchor="e")
 
     root.update()
 
@@ -164,6 +196,13 @@ def check_and_download_model(models_dir: Path) -> bool:
             root.after(800, root.destroy)
 
     threading.Thread(target=_run, daemon=True).start()
+
+    # Centre on screen
+    root.update_idletasks()
+    w, h = root.winfo_width(), root.winfo_height()
+    sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+    root.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 3}")
+
     root.mainloop()
 
     if error[0]:
