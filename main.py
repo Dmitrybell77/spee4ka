@@ -1049,13 +1049,16 @@ def _do_offline_first(audio_np: np.ndarray, origin_hwnd: int = 0):
         log.info("✓ pasted (offline_first → Whisper)")
         return
 
-    # Whisper timed out or returned empty — fall back to Yandex
-    if t.is_alive():
-        log.warning(f"offline_first: Whisper timed out after {timeout_sec:.1f}s")
-        _notify("Whisper завис — переключаюсь на Яндекс…")
-    else:
-        log.warning("offline_first: Whisper returned empty")
-        _notify("Whisper ничего не распознал — пробую Яндекс…")
+    # Whisper finished but returned empty → almost certainly silence/very short audio.
+    # Don't burn Yandex API quota on it (matches online_first behaviour, which also
+    # treats empty as silence and stays quiet).
+    if not t.is_alive():
+        log.info("offline_first: Whisper returned empty — treating as silence, no fallback")
+        return
+
+    # Whisper actually timed out → engine is broken/stuck. Fall back to Yandex.
+    log.warning(f"offline_first: Whisper timed out after {timeout_sec:.1f}s")
+    _notify("Whisper завис — переключаюсь на Яндекс…")
 
     if not HAS_YANDEX:
         log.error("offline_first: no Yandex credentials — cannot fallback")
