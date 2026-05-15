@@ -1104,17 +1104,26 @@ def process_release():
 _RELEASE_DEBOUNCE_S = 0.15
 _release_timer: Optional[threading.Timer] = None
 
-# Safety: if on_release somehow doesn't fire (keyboard hook missed the event), force-stop
-# the recording after this many seconds so the user isn't stuck with a permanent recording.
-_MAX_RECORDING_S = 60.0
-_watchdog_timer: Optional[threading.Timer] = None
+# Safety: poll physical key state while recording. If the keyboard hook misses the
+# release event, on_release never fires and the recording would run forever. Polling
+# keyboard.is_pressed() catches this within _HOTKEY_POLL_S without imposing a max
+# duration — long dictations (5+ min) keep working as long as the key stays down.
+_HOTKEY_POLL_S = 0.5
+_hotkey_poll_thread: Optional[threading.Thread] = None
 
 
-def _watchdog_force_release():
-    """Emergency stop: on_release didn't fire, terminate recording."""
-    if recorder.recording:
-        log.warning(f"Watchdog: recording exceeded {_MAX_RECORDING_S}s — force-stopping")
-        _do_release()
+def _hotkey_poll_loop():
+    """Recover from missed key-release events by checking the physical key state."""
+    while recorder.recording:
+        try:
+            still_pressed = keyboard.is_pressed(HOTKEY)
+        except Exception:
+            still_pressed = True  # on error, trust the hook and don't force-release
+        if not still_pressed:
+            log.warning(f"Hotkey poll: [{HOTKEY}] no longer pressed — force-stopping")
+            _do_release()
+            return
+        time.sleep(_HOTKEY_POLL_S)
 
 # HWND of the window that was focused when the hotkey was pressed. Captured here so the
 # paste worker can return focus before sending Ctrl+V — otherwise text lands wherever the
@@ -1123,7 +1132,7 @@ _origin_hwnd_for_session: int = 0
 
 
 def on_press(_e):
-    global _release_timer, _origin_hwnd_for_session, _watchdog_timer
+    global _release_timer, _origin_hwnd_for_session, _hotkey_poll_thread
     # Cancel pending debounce — key came back, phantom release
     if _release_timer is not None:
         _release_timer.cancel()
@@ -1136,24 +1145,19 @@ def on_press(_e):
         try:
             recorder.start()
             set_state("rec")
-            # Arm watchdog: if on_release is missed by the keyboard hook,
-            # this will force-stop the recording after _MAX_RECORDING_S.
-            if _watchdog_timer is not None:
-                _watchdog_timer.cancel()
-            _watchdog_timer = threading.Timer(_MAX_RECORDING_S, _watchdog_force_release)
-            _watchdog_timer.daemon = True
-            _watchdog_timer.start()
+            # Start polling thread: recovers from missed release events without
+            # imposing a maximum recording duration.
+            _hotkey_poll_thread = threading.Thread(
+                target=_hotkey_poll_loop, daemon=True, name="hotkey-poll")
+            _hotkey_poll_thread.start()
         except Exception as ex:
             log.exception(f"recorder.start failed: {ex}")
             set_state("idle")
 
 
 def _do_release():
-    global _release_timer, _watchdog_timer
+    global _release_timer
     _release_timer = None
-    if _watchdog_timer is not None:
-        _watchdog_timer.cancel()
-        _watchdog_timer = None
     if recorder.recording:
         set_state("idle")
         threading.Thread(target=process_release, daemon=True).start()
