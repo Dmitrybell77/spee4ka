@@ -170,6 +170,26 @@ def _styled_entry(parent, textvariable, show=None, width=32, font=("Segoe UI", 1
         highlightbackground=BORDER, highlightthickness=1,
         insertbackground=TEXT,
     )
+    # Ctrl+V на русской раскладке: keysym становится 'м', стандартный bind не срабатывает.
+    # Биндим по keycode (V = 86 на Windows вне зависимости от раскладки).
+    def _paste(event=None):
+        try:
+            text = e.clipboard_get()
+        except Exception:
+            return "break"
+        if text:
+            try:
+                e.delete("sel.first", "sel.last")
+            except tk.TclError:
+                pass
+            e.insert("insert", text)
+        return "break"
+    e.bind("<Control-v>", _paste)
+    e.bind("<Control-V>", _paste)
+    def _on_ctrl_key(event):
+        if event.keycode == 86:
+            return _paste(event)
+    e.bind("<Control-KeyPress>", _on_ctrl_key)
     return e
 
 

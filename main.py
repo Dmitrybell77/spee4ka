@@ -126,6 +126,7 @@ def _check_license() -> bool:
         return _license_valid
     except ImportError:
         log.warning("license_manager not available — skipping license check")
+        _license_valid = True  # behave as valid since we can't verify
         return True
 
 _CFG_DEFAULTS = {
@@ -1103,6 +1104,18 @@ def process_release():
 _RELEASE_DEBOUNCE_S = 0.15
 _release_timer: Optional[threading.Timer] = None
 
+# Safety: if on_release somehow doesn't fire (keyboard hook missed the event), force-stop
+# the recording after this many seconds so the user isn't stuck with a permanent recording.
+_MAX_RECORDING_S = 60.0
+_watchdog_timer: Optional[threading.Timer] = None
+
+
+def _watchdog_force_release():
+    """Emergency stop: on_release didn't fire, terminate recording."""
+    if recorder.recording:
+        log.warning(f"Watchdog: recording exceeded {_MAX_RECORDING_S}s — force-stopping")
+        _do_release()
+
 # HWND of the window that was focused when the hotkey was pressed. Captured here so the
 # paste worker can return focus before sending Ctrl+V — otherwise text lands wherever the
 # user happened to click during processing (often the tray menu itself).
@@ -1110,7 +1123,7 @@ _origin_hwnd_for_session: int = 0
 
 
 def on_press(_e):
-    global _release_timer, _origin_hwnd_for_session
+    global _release_timer, _origin_hwnd_for_session, _watchdog_timer
     # Cancel pending debounce — key came back, phantom release
     if _release_timer is not None:
         _release_timer.cancel()
@@ -1123,14 +1136,24 @@ def on_press(_e):
         try:
             recorder.start()
             set_state("rec")
+            # Arm watchdog: if on_release is missed by the keyboard hook,
+            # this will force-stop the recording after _MAX_RECORDING_S.
+            if _watchdog_timer is not None:
+                _watchdog_timer.cancel()
+            _watchdog_timer = threading.Timer(_MAX_RECORDING_S, _watchdog_force_release)
+            _watchdog_timer.daemon = True
+            _watchdog_timer.start()
         except Exception as ex:
             log.exception(f"recorder.start failed: {ex}")
             set_state("idle")
 
 
 def _do_release():
-    global _release_timer
+    global _release_timer, _watchdog_timer
     _release_timer = None
+    if _watchdog_timer is not None:
+        _watchdog_timer.cancel()
+        _watchdog_timer = None
     if recorder.recording:
         set_state("idle")
         threading.Thread(target=process_release, daemon=True).start()
