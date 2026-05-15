@@ -182,7 +182,7 @@ def _load_config(path: Path) -> dict:
 
 CFG = _load_config(ROOT / "config.json")
 
-APP_VERSION = "1.0.9"
+APP_VERSION = "1.0.10"
 VERSION_CHECK_URL = "https://spee4ka.ru/version.json"
 
 SAMPLE_RATE = 16000
