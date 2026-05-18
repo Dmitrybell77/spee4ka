@@ -366,6 +366,7 @@
       <li><a href="#modes">Whisper и Яндекс — в чём разница</a></li>
       <li><a href="#choose">Какой режим выбрать</a></li>
       <li><a href="#yandex-api">Подключение Яндекс API — пошаговая инструкция</a></li>
+      <li><a href="#settings">Настройки — обзор всех параметров</a></li>
     </ol>
   </nav>
 
@@ -445,7 +446,7 @@
     <p style="margin-top:10px">Если решите подключить — нужно получить два значения: <strong>API-ключ</strong> и <strong>ID каталога</strong>. Это займёт около 10 минут.</p>
 
     <div class="price-note">
-      💳 Новым пользователям Яндекс Облако даёт <strong>4 000 ₽ бесплатно</strong> на старт. SpeechKit стоит ~0.16 ₽ за 15 секунд речи. При обычном использовании хватает на несколько месяцев.
+      💳 Новым пользователям Яндекс Облако даёт <strong>4 000 ₽ бесплатно</strong> на старт. Распознавание речи — 0.01 ₽/сек, полировка текста через YandexGPT — 0.20 ₽ за 1000 токенов.
     </div>
 
     <div class="steps">
@@ -502,11 +503,54 @@
 
     </div>
 
-    <div class="tip">
-      <strong>Всё готово</strong>
-      Продиктуйте любую фразу — в логе увидите <em>pasted (online)</em>, это значит Яндекс работает.
-    </div>
   </section>
+
+  <!-- SECTION 4 -->
+  <section id="settings">
+    <h2>4. Настройки — обзор всех параметров</h2>
+
+    <p>Открыть: правый клик по иконке Спички в трее → <strong>Настройки</strong>.</p>
+
+    <h3>Управление</h3>
+
+    <p><strong>Горячая клавиша</strong> — кнопка, которую держите во время диктовки. По умолчанию правый Ctrl. Если кнопка занята другой программой — нажмите на поле и зажмите любую другую.</p>
+
+    <p><strong>Режим работы</strong> — Офлайн-first или Онлайн-first. Подробнее в <a href="#choose" style="color:var(--ink);font-weight:500">разделе 2</a>.</p>
+
+    <h3>Опции</h3>
+
+    <p><strong>Полировать текст через YandexGPT</strong> — после распознавания Спичка прогоняет текст через YandexGPT: убирает слова-паразиты, расставляет знаки препинания, переводит устную речь в письменную.</p>
+
+    <div class="compare" style="margin-top:16px">
+      <div class="card">
+        <div class="card-title" style="color:var(--ink3);font-weight:500">Без полировки</div>
+        <p style="font-size:.9rem;color:var(--ink2);margin-top:10px;font-style:italic">«ну вот короче я хотел сказать что надо переделать этот момент»</p>
+      </div>
+      <div class="card">
+        <div class="card-title" style="color:var(--green);font-weight:500">С полировкой</div>
+        <p style="font-size:.9rem;color:var(--ink2);margin-top:10px;font-style:italic">«Надо переделать этот момент.»</p>
+      </div>
+    </div>
+
+    <div class="tip" style="margin-top:16px">
+      <strong>Требует Яндекс API</strong>
+      Полировка работает только при подключённом API-ключе. Без него галочка ничего не меняет.
+    </div>
+
+    <p style="margin-top:20px"><strong>Загружать Whisper в RAM при старте</strong> — Whisper загружается заранее, при запуске приложения. Первая диктовка сработает без паузы на загрузку. Минус: занимает ~500 МБ оперативной памяти постоянно.</p>
+
+    <p><strong>Автозапуск с Windows</strong> — Спичка запускается автоматически при входе в систему. Рекомендуется включить, чтобы горячая клавиша работала с первой секунды.</p>
+
+    <h3>Яндекс API</h3>
+
+    <p>Поля для ввода <strong>API Key</strong> и <strong>Folder ID</strong>. Как получить эти значения — описано в <a href="#yandex-api" style="color:var(--ink);font-weight:500">разделе 3</a>. Изменения вступают в силу после перезапуска приложения.</p>
+
+  </section>
+
+  <div class="tip">
+    <strong>Всё готово</strong>
+    Продиктуйте любую фразу — в логе увидите <em>pasted (online)</em>, это значит Яндекс работает.
+  </div>
 
 </div>
 

@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<script>(function(){var oid=localStorage.getItem('spee4ka_order_id');if(oid)location.replace('/thanks?order_id='+oid);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Спичка — голосовой набор текста для Windows</title>
 <meta name="description" content="Спичка — push-to-talk диктовка для Windows. Зажал клавишу, надиктовал — текст сам вставился в любое поле. Работает офлайн (Whisper) и онлайн (Яндекс SpeechKit). Аналог SuperWhisper и Whisper Flow для Windows.">
@@ -125,7 +126,7 @@
 
   h1 {
     font-family: var(--sans);
-    font-size: clamp(56px, 9vw, 96px);
+    font-size: clamp(36px, 10vw, 96px);
     font-weight: 700; letter-spacing: -0.045em; line-height: 1.0;
     color: var(--ink); margin-bottom: 0;
   }
@@ -795,19 +796,6 @@
       });
       const data = await res.json();
       if (data.confirmation_url) {
-        // If a promo was entered, confirm with the user what price they're about to pay —
-        // a wrong/expired promo silently falls back to the full price on the server side.
-        if (promo) {
-          const priceStr = data.price ? data.price + ' ₽' : 'полная цена';
-          const msg = data.promo_applied
-            ? 'Промокод применён. К оплате: ' + priceStr + '.\n\nПродолжить?'
-            : 'Промокод не сработал — будет списана полная цена (' + priceStr + ').\n\nПродолжить?';
-          if (!confirm(msg)) {
-            btn.disabled = false;
-            btn.textContent = 'Перейти к оплате →';
-            return;
-          }
-        }
         localStorage.setItem('spee4ka_order_id', data.order_id);
         window.location.href = data.confirmation_url;
       } else {
@@ -826,7 +814,7 @@
 </script>
 
 <script>
-  // Typewriter on "Печатай"
+  // Typewriter on "Печатай" — looping with blinking cursor
   (function() {
     const el = document.getElementById('tw');
     if (!el) return;
@@ -835,16 +823,31 @@
     cursor.className = 'tw-cursor';
     cursor.textContent = '|';
     el.insertAdjacentElement('afterend', cursor);
-    let i = 0;
-    function type() {
-      if (i < text.length) {
-        el.textContent += text[i++];
-        setTimeout(type, 72);
-      } else {
-        setTimeout(() => { cursor.style.display = 'none'; }, 900);
-      }
+
+    function type(cb) {
+      let i = 0;
+      (function step() {
+        if (i < text.length) { el.textContent += text[i++]; setTimeout(step, 72); }
+        else cb();
+      })();
     }
-    setTimeout(type, 400);
+
+    function erase(cb) {
+      (function step() {
+        if (el.textContent.length > 0) { el.textContent = el.textContent.slice(0, -1); setTimeout(step, 38); }
+        else cb();
+      })();
+    }
+
+    function loop() {
+      type(function() {
+        setTimeout(function() {
+          erase(function() { setTimeout(loop, 350); });
+        }, 5000);
+      });
+    }
+
+    setTimeout(loop, 400);
   })();
 
   // Scroll reveal

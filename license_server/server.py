@@ -407,7 +407,7 @@ localStorage.removeItem('spee4ka_order_id');
 {% endif %}
 </head><body>
 <h1>{% if key %}Спасибо за покупку!{% else %}Обрабатываем платёж…{% endif %}</h1>
-<p class="sub">{% if key %}Ваш лицензионный ключ Спичка{% else %}Страница обновится автоматически через несколько секунд{% endif %}</p>
+<p class="sub">{% if key %}Ваш лицензионный ключ Спичка<br><small style="color:#c0392b;font-weight:600">Сохраните ключ — он показывается один раз</small>{% else %}Страница обновится автоматически через несколько секунд{% endif %}</p>
 
 {% if key %}
 <div class="key-box">

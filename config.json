@@ -11,7 +11,7 @@
     "mode": "offline_first",
     "local_model": "small",
     "local_model_fallback": "tiny",
-    "local_language": "ru",
+    "local_language": null,
     "local_compute_type": "int8",
     "local_cpu_threads": 0,
     "preload_local_at_start": true
