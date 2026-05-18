@@ -54,8 +54,14 @@ def _download_with_progress(models_dir: Path, progress_cb, status_cb):
     from huggingface_hub import logging as hf_logging
     hf_logging.set_verbosity_error()
 
-    # Disable XET (content-addressed store) so files land directly in cache_dir
+    # Disable XET and tqdm progress bars (tqdm writes to sys.stdout which is None in pythonw.exe)
     os.environ["HF_HUB_DISABLE_XET"] = "1"
+    os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+    import io as _io
+    if sys.stdout is None:
+        sys.stdout = _io.StringIO()
+    if sys.stderr is None:
+        sys.stderr = _io.StringIO()
 
     status_cb("Подключение к HuggingFace...")
     try:
