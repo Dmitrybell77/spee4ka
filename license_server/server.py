@@ -452,7 +452,7 @@ localStorage.removeItem('spee4ka_order_id');
 <div class="step" style="margin-top:12px;">
   <b>Шаг 3 — Настройте Яндекс API (опционально):</b><br>
   Подключите Яндекс для более точного распознавания и полировки текста.<br>
-  <a href="/instruction.html" target="_blank" rel="noopener" style="color:#4338CA;font-weight:600">Читать инструкцию по подключению →</a>
+  <a href="/instruction.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;padding:12px 24px;background:#4338CA;color:#fff;font-weight:600;border-radius:8px;text-decoration:none;font-size:1rem">Читать инструкцию по подключению →</a>
 </div>
 <div class="step" style="margin-top:16px;font-size:.9rem;color:#555">
   🧾 <b>Нужен чек?</b> Напишите на <a href="mailto:info@spee4ka.ru">info@spee4ka.ru</a> — пришлём в течение дня.
