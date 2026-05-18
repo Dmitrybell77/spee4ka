@@ -252,6 +252,26 @@ def api_reset():
     return jsonify({"ok": True, "key": key})
 
 
+@app.route("/api/delete", methods=["POST"])
+@_admin_required
+def api_delete():
+    key = (request.json or {}).get("key", "").strip().upper()
+    if not key:
+        return jsonify({"error": "key required"}), 400
+
+    conn = _get_db()
+    row = conn.execute("SELECT key FROM licenses WHERE key = ?", (key,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "key not found"}), 404
+
+    conn.execute("DELETE FROM licenses WHERE key = ?", (key,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True, "key": key})
+
+
 @app.route("/api/list", methods=["GET"])
 @_admin_required
 def api_list():
@@ -481,6 +501,8 @@ button:hover{background:#666}
 .gen:hover{background:#3b8}
 .reset{background:#c44;border-radius:4px}
 .reset:hover{background:#d55}
+.del{background:none;border:none;color:#aaa;font-size:13px;cursor:pointer;padding:2px 5px;border-radius:3px;line-height:1}
+.del:hover{color:#c44;background:#fee}
 .msg{padding:8px;margin:8px 0;border-radius:4px}
 .ok{background:#dfd;color:#060}
 .err{background:#fdd;color:#600}
@@ -513,7 +535,7 @@ button:hover{background:#666}
 <button onclick="loadList()">Refresh</button>
 <div id="list-msg"></div>
 <table><thead><tr>
-<th>Key</th><th>Status</th><th>Machine ID</th><th>Создан</th><th>Activated</th><th>Expires</th><th>Resets</th><th>Email</th><th>Action</th>
+<th></th><th>Key</th><th>Status</th><th>Machine ID</th><th>Создан</th><th>Activated</th><th>Expires</th><th>Resets</th><th>Email</th><th>Action</th>
 </tr></thead><tbody id="tbody"></tbody></table>
 </div>
 
@@ -569,7 +591,7 @@ function renderList(licenses){
  tb.innerHTML='';
  licenses.forEach(l=>{
   const tr=document.createElement('tr');
-  tr.innerHTML=`<td>${l.key}</td><td>${l.status}</td><td>${l.machine_id||'—'}</td><td>${l.created_at||'—'}</td><td>${l.activated_at||'—'}</td><td>${l.expires_at||'—'}</td><td>${l.reset_count}</td><td>${l.email||'—'}</td><td>${l.status==='active'?'<button class=\"reset\" onclick=\"resetKey(\\''+l.key+'\\')\">Reset</button>':''}</td>`;
+  tr.innerHTML=`<td><button class="del" onclick="deleteKey('${l.key}')" title="Удалить ключ">✕</button></td><td>${l.key}</td><td>${l.status}</td><td>${l.machine_id||'—'}</td><td>${l.created_at||'—'}</td><td>${l.activated_at||'—'}</td><td>${l.expires_at||'—'}</td><td>${l.reset_count}</td><td>${l.email||'—'}</td><td>${l.status==='active'?'<button class=\"reset\" onclick=\"resetKey(\\''+l.key+'\\')\">Reset</button>':''}</td>`;
   tb.appendChild(tr);
  });
 }
@@ -577,6 +599,17 @@ function renderList(licenses){
 async function resetKey(key){
  if(!confirm('Reset binding for '+key+'?'))return;
  const r=await fetch('/api/reset',{
+  method:'POST',
+  headers: authHeaders({'Content-Type':'application/json'}),
+  body:JSON.stringify({key})
+ });
+ const d=await r.json();
+ if(d.ok){loadList()}else{alert(d.error||'Error')}
+}
+
+async function deleteKey(key){
+ if(!confirm('Удалить ключ '+key+'?\nЭто действие необратимо.'))return;
+ const r=await fetch('/api/delete',{
   method:'POST',
   headers: authHeaders({'Content-Type':'application/json'}),
   body:JSON.stringify({key})
