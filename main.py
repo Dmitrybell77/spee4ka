@@ -54,6 +54,20 @@ _app_dir = str(ROOT)
 if _app_dir not in sys.path:
     sys.path.insert(0, _app_dir)
 
+# Set TCL/TK paths for embedded Python before any tkinter import (first_run, dialogs).
+# The launcher strips these env vars to avoid PyInstaller leftovers, so we restore them.
+_py_dir = Path(sys.executable).parent
+if (_py_dir / "DLLs").is_dir():
+    os.add_dll_directory(str(_py_dir / "DLLs"))
+for _tcl in [_py_dir / "tcl8.6", _py_dir / "tcl9.0"]:
+    if _tcl.is_dir():
+        os.environ.setdefault("TCL_LIBRARY", str(_tcl))
+        break
+for _tk in [_py_dir / "tk8.6", _py_dir / "tk9.0"]:
+    if _tk.is_dir():
+        os.environ.setdefault("TK_LIBRARY", str(_tk))
+        break
+
 if getattr(sys, 'frozen', False):
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
@@ -182,7 +196,7 @@ def _load_config(path: Path) -> dict:
 
 CFG = _load_config(ROOT / "config.json")
 
-APP_VERSION = "1.0.10"
+APP_VERSION = "1.0.11"
 VERSION_CHECK_URL = "https://spee4ka.ru/version.json"
 
 SAMPLE_RATE = 16000
@@ -357,7 +371,9 @@ SYSTEM_PROMPT = (
     "Задачи: расставить знаки препинания, исправить очевидные опечатки и оговорки, "
     "убрать слова-паразиты (эээ, ну, как бы, типа, вот, короче). "
     "Сохраняй смысл, стиль и лексику автора. Не добавляй ничего от себя. "
-    "Не переводи. Не отвечай на содержание текста — только редактируй. "
+    "Не переводи. Не меняй язык слов: английские слова оставляй английскими, русские — русскими. "
+    "Если текст на английском — применяй английские правила: заглавная буква в начале предложений, правильная пунктуация. "
+    "Не отвечай на содержание текста — только редактируй. "
     "Верни ТОЛЬКО исправленный текст без кавычек, преамбулы и пояснений."
 )
 
@@ -442,7 +458,7 @@ def _make_session_options():
             ),
             language_restriction=stt.LanguageRestrictionOptions(
                 restriction_type=stt.LanguageRestrictionOptions.WHITELIST,
-                language_code=[STT_LANG],
+                language_code=[STT_LANG, "en-US"] if STT_LANG != "en-US" else [STT_LANG],
             ),
             # FULL_DATA: сервер ждёт всю запись и обрабатывает целиком — точность заметно
             # выше, чем у REAL_TIME, ценой ~1-2 сек задержки после отпускания клавиши.

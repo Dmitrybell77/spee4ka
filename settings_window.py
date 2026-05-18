@@ -410,7 +410,6 @@ def open_settings(apply_callback: Optional[Callable] = None):
         cfg["hotkey"]                 = hotkey_var.get()
         cfg["mode"]                   = new_mode
         cfg["local_model"]            = model_var.get()
-        cfg["local_language"]         = "ru"
         cfg["polish"]                 = polish_var.get()
         cfg["preload_local_at_start"] = preload_var.get()
 

@@ -3,10 +3,26 @@ First-run Whisper model downloader.
 Call check_and_download_model() before starting the main app.
 Shows a tkinter progress window if the model needs to be downloaded.
 """
+import os
+import sys
 import threading
+from pathlib import Path
+
+# Set TCL/TK paths before tkinter import — embedded Python doesn't auto-discover them.
+_py_dir = Path(sys.executable).parent
+if (_py_dir / "DLLs").is_dir():
+    os.add_dll_directory(str(_py_dir / "DLLs"))
+for _d in [_py_dir / "tcl8.6", _py_dir / "tcl9.0"]:
+    if _d.is_dir():
+        os.environ.setdefault("TCL_LIBRARY", str(_d))
+        break
+for _d in [_py_dir / "tk8.6", _py_dir / "tk9.0"]:
+    if _d.is_dir():
+        os.environ.setdefault("TK_LIBRARY", str(_d))
+        break
+
 import tkinter as tk
 from tkinter import ttk
-from pathlib import Path
 
 
 MODEL_NAME = "small"
