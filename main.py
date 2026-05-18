@@ -196,7 +196,7 @@ def _load_config(path: Path) -> dict:
 
 CFG = _load_config(ROOT / "config.json")
 
-APP_VERSION = "1.0.12"
+APP_VERSION = "1.0.13"
 VERSION_CHECK_URL = "https://spee4ka.ru/version.json"
 
 SAMPLE_RATE = 16000
@@ -312,8 +312,11 @@ def _launch_activation_window() -> None:
         proc = subprocess.Popen(
             [python, str(activation_script)],
             cwd=str(activation_script.parent),
+            stderr=subprocess.PIPE,
         )
-        proc.wait()
+        _, stderr_bytes = proc.communicate()
+        if stderr_bytes:
+            log.warning(f"activation_window stderr: {stderr_bytes.decode('utf-8', errors='replace')}")
     except Exception:
         log.exception("activation window error")
 

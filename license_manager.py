@@ -103,8 +103,8 @@ def activate(key: str, root: Path) -> dict:
             return {"ok": True, "expires": data.get("expires", "")}
         return {"ok": False, "error": data.get("error", "Activation failed")}
     except requests.RequestException as ex:
-        log.warning(f"Activation network error: {ex}")
-        return {"ok": False, "error": "No connection to license server"}
+        log.warning(f"Activation network error: {type(ex).__name__}: {ex}")
+        return {"ok": False, "error": f"no_connection: {type(ex).__name__}: {ex}"}
 
 
 def check(root: Path) -> dict:

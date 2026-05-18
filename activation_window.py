@@ -23,6 +23,19 @@ from tkinter import ttk
 ROOT = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
+import logging
+_log_dir = ROOT / "logs"
+_log_dir.mkdir(exist_ok=True)
+logging.basicConfig(
+    filename=str(_log_dir / "activation.log"),
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+import traceback as _traceback
+sys.excepthook = lambda t, v, tb: logging.critical(
+    "Unhandled exception:\n" + "".join(_traceback.format_exception(t, v, tb))
+)
+
 # ── Palette (kept in sync with settings_window.py and the landing page) ──
 BG       = "#f6f6fa"
 CARD     = "#ffffff"
