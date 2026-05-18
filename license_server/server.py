@@ -608,7 +608,7 @@ async function resetKey(key){
 }
 
 async function deleteKey(key){
- if(!confirm('Удалить ключ '+key+'?\nЭто действие необратимо.'))return;
+ if(!confirm('Удалить ключ ' + key + '? Это действие необратимо.'))return;
  const r=await fetch('/api/delete',{
   method:'POST',
   headers: authHeaders({'Content-Type':'application/json'}),
