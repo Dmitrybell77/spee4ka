@@ -848,7 +848,7 @@ class LocalRecognizer:
         t0 = time.time()
         lang = LOCAL_LANGUAGE
         if lang is None:
-            detected, _ = self.model.detect_language(audio_f32)
+            detected, *_ = self.model.detect_language(audio_f32)
             lang = detected if detected in self._ALLOWED_LANGUAGES else "ru"
             log.debug(f"whisper lang detect: {detected} → {lang}")
         segments, _info = self.model.transcribe(
