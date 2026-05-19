@@ -1,5 +1,5 @@
 #define AppName "Спичка"
-#define AppVersion "1.0.10"
+#define AppVersion "1.0.14"
 #define AppPublisher "Спичка"
 #define AppURL "https://spee4ka.ru"
 #define AppExeName "Spee4ka.exe"
