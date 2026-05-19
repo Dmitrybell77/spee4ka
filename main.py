@@ -833,14 +833,21 @@ class LocalRecognizer:
             )
             return False
 
+    _ALLOWED_LANGUAGES = {"ru", "en"}
+
     def transcribe(self, audio_int16: np.ndarray) -> str:
         if not self.load():
             return ""
         audio_f32 = audio_int16.astype(np.float32).flatten() / 32768.0
         t0 = time.time()
+        lang = LOCAL_LANGUAGE
+        if lang is None:
+            detected, _ = self.model.detect_language(audio_f32)
+            lang = detected if detected in self._ALLOWED_LANGUAGES else "ru"
+            log.debug(f"whisper lang detect: {detected} → {lang}")
         segments, _info = self.model.transcribe(
             audio_f32,
-            language=LOCAL_LANGUAGE,  # "ru" by default; null in config = auto-detect
+            language=lang,  # "ru" by default; null in config = auto-detect ru/en
             beam_size=1,
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=300),
